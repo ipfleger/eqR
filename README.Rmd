@@ -1,0 +1,13 @@
+---
+title: "README"
+author: "Isaac Pfleger, PhD"
+date: "2025-07-15"
+output: html_document
+---
+
+# Introduction
+This is a translation of Brennan's 2006 equate_recipes into R code. This was greatly assissted by Google Gemini in July 2025 with major contributions by myself, specifically in the user experience. Minor testing has been done to compare the output of the various functions with the output in the manual.
+
+My wrapper functions, that I think will make the entire experience more useable, may not work for everyone. I assume that you have the raw data. Often the original program had the data in obtuse formats.
+
+There is still support for these obtuse formats, just not using my wrappers at this time. I understand that these tables are more efficient on large data sets, so perhaps I will add support for them in the future. But for now, this is what you've got.
