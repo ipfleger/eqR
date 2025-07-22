@@ -14,16 +14,16 @@ eq <- init_equating() |>
 
  single <- eq |>
   add_design("single") |> # Add the design
-  add_method(
-    method = "linear", mean_only = TRUE # Mean equating
-  ) |>
-  add_method(
-    method = "linear" # linear equating
-  )  |>
-  add_method(
-    method = "equipercentile" # equipercentile equating no smoothing
-  ) |>
-  run_equating(boot_replications = 1000, boot_type = "perc") # bootstrap options are from boot::boot
+  # add_method(
+  #   method = "linear", mean_only = TRUE # Mean equating
+  # ) |>
+  # add_method(
+  #   method = "linear" # linear equating
+  # )  |>
+  # add_method(
+  #   method = "equipercentile" # equipercentile equating no smoothing
+  # ) |>
+  run_equating(boot_replications = 1000, boot_type = "bca") # bootstrap options are from boot::boot
 
 
 single$`Form C;Form A`$`S L mean N mean_only`$Mean
@@ -37,13 +37,24 @@ single$`Form C;Form A`$`S L linear N`$Linear$plots$score_conversion(relative = T
 
 common <- eq |>
   add_design("CG") |>
+  # add_method(
+  #   method = "linear", type = "all", internal_anchors = TRUE, mean_only = FALSE, w1 = 1 # Can't be zero, synthetic variance is non-positive. What is that about?
+  # )|>
   add_method(
-    method = "linear", type = "all", internal_anchors = TRUE, mean_only = FALSE, w1 = 1 # Can't be zero, synthetic variance is non-positive. What is that about?
-  )|>
-  add_method(
-    method = "equipercentile", type = c("H"), #smooth = "continuized_log_linear"
+    method = "equipercentile", type = c("E"), #smooth = "continuized_log_linear"
   ) |>
-  run_equating(boot_type = "perc") # this breaks as a bca | 1: In norm.inter(t, adj.alpha) : extreme order statistics used as endpoints
+  run_equating(boot_type = "bca") # this breaks as a bca | 1: In norm.inter(t, adj.alpha) : extreme order statistics used as endpoints
+
+plot_equivalent(results = common$`Form C;Form A`$`CG E E N`$FrequencyEstimation)
+plot_equivalent(results = common$`Form C;Form A`$`CG E E N`$BraunHolland_FE)
+
+# FE
+# BH
+# MFE
+# bca not working for equipercentile
+
+
+plot_equivalent(results = common$`Form C;Form A`$`CG E C N`$Chained)
 
 common$`Form C;Form A`$`CG E H Z`$FrequencyEstimation
 plot_equivalent(results = common$`Form C;Form A`$`CG L all N`$`Levine Observed`)

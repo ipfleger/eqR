@@ -80,7 +80,19 @@ equipercentile_sgrg <- function(eq, forms, title, boot_type = "perc", boot_repli
 
     boots <- lapply(1:ncol(equi_boot$t), \(i) `if`(length(unique(equi_boot$t[,i])) == 1,
                                                    list(cbind(c(NA,NA), c(NA,NA))) |> `names<-`(sapply(boot_type, switch, "perc" = "percent")),
-                                                   boot::boot.ci(equi_boot, index = i, type = boot_type, conf = c(.5, .95))))
+                                                   tryCatch({
+                                                     # 1. Attempt to run with "bca"
+                                                     boot::boot.ci(equi_boot, index = i, type = boot_type, conf = c(0.5, 0.95))
+                                                   },
+                                                   error = function(e) {
+                                                     # 2. If an error occurs, issue a warning
+                                                     warning(paste(boot_type, "calculation failed. Switching to percentile (perc) method."), call. = FALSE)
+                                                     # 3. Rerun with "perc"
+                                                     boot::boot.ci(equi_boot, index = i, type = "perc", conf = c(0.5, 0.95))
+                                                   }
+                                                   )
+                                                   )
+                    )
 
     cis <- do.call(rbind, lapply(boots, \(x) {
       ci_type <- sapply(boot_type, switch, "perc" = "percent")

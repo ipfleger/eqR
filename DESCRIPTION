@@ -1,11 +1,10 @@
 Package: eqR
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Test Form Equating
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
+Author: Isaac Pfleger, Robert L. Brennan, Tianyou Wang, Seonghoon Kim, and Jaehoon Seol
+Maintainer: Isaac Pfleger <isaac@cms.itemexperts.com>
+Description: This project is an R package that provides a modern, user-friendly implementation of the "Equating Recipes" program, originally written in C by Robert L. Brennan, Tianyou Wang, Seonghoon Kim, and Jaehoon Seol. "Equating Recipes" is a comprehensive set of functions for performing various psychometric equating methods, as described in the book "Test Equating, Scaling, and Linking: Methods and Practices" by Kolen and Brennan (2014).
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
@@ -15,3 +14,4 @@ Suggests:
 Config/testthat/edition: 3
 URL: https://github.com/ipfleger/eqR
 BugReports: https://github.com/ipfleger/eqR/issues
+Logo: man/figures/logo.png

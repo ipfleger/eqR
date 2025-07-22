@@ -4,7 +4,7 @@
 \alias{kernel_inverse_cdf}
 \title{Inverse of the Kernel Smoothed CDF}
 \usage{
-kernel_inverse_cdf(p, scores, rel_freq, hx)
+kernel_inverse_cdf(p, scores, rel_freq, hx, tol = 1e-08)
 }
 \arguments{
 \item{p}{A numeric value (probability) between 0 and 1.}
@@ -19,14 +19,5 @@ kernel_inverse_cdf(p, scores, rel_freq, hx)
 The score `x` corresponding to the cumulative probability `p`.
 }
 \description{
-Finds the score `x` that corresponds to a given cumulative probability `p`
-using the kernel smoothed distribution. This is the inverse of the
-`kernel_continu_cdf` function.
-}
-\details{
-This function uses the `uniroot` optimization function to find the root of
-the equation `kernel_continu_cdf(x) - p = 0`.
-}
-\author{
-Tianyou Wang (Original C code), Google's Gemini (R translation)
+Finds the score `x` that corresponds to a given cumulative probability `p`.
 }

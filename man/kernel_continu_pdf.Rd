@@ -19,9 +19,5 @@ kernel_continu_pdf(x, scores, rel_freq, hx)
 The value of the kernel smoothed PDF at `x`.
 }
 \description{
-Computes the kernel smoothed continuous PDF for a given score `x`, based on
-the methodology from von Davier, Holland, & Thayer (2004).
-}
-\author{
-Tianyou Wang (Original C code), Google's Gemini (R translation)
+Computes the kernel smoothed continuous PDF for a given score `x`.
 }

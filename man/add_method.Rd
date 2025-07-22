@@ -60,6 +60,7 @@ depend on the `method` and the `design` set in the recipe.
   \itemize{
     \item `type = "frequency"` (Default): The Frequency Estimation method.
     \item `type = "chained"`: The Chained Equipercentile method.
+    \item `type = "modified_frequency"`: The Modified Frequency Estimation (MFE) method, which adjusts for anchor reliability. Also runs Braun-Holland under MFE.
   }
 }
 }
@@ -93,11 +94,6 @@ Optional parameters for both smoothing and equating methods can be passed via `.
   \item \code{mean_only}: Sets the slope to 1 to perform mean equating. Logical. *Default: \code{FALSE}*.
   \item \code{w1}: For linear CG methods, the weight given to population 1 in the synthetic population. Numeric. *Default: \code{1}*.
   \item \code{internal_anchors}: For linear CG methods, specifies if the anchor test is internal. Logical. *Default: \code{TRUE}*.
-}
-
-\strong{General Score Scale Options}
-\itemize{
-  \item \code{min_x}, \code{max_x}, \code{inc_x}: Manually set the score scale for the 'from' form. Numeric. *Default: \code{NULL}*.
 }
 }
 
