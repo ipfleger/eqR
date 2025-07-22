@@ -1,3 +1,6 @@
+# This file will contain the wrapper functions that will bridge my higher level syntax (e.g. run_equate) with the internal functions
+# I am currently debugging
+
 
 equipercentile <- function(forms, design, eq, title, boot_type = "perc", boot_replications = 1000){
   if(design %in% c("S", "R")) {
@@ -8,6 +11,46 @@ equipercentile <- function(forms, design, eq, title, boot_type = "perc", boot_re
   }
 }
 
+# Helper to create a frequency distribution on the full score range
+get_freq_dist <- function(scores, score_range) {
+  # Ensure all levels from min to max score are included
+  score_factor <- factor(scores, levels = score_range)
+  as.vector(table(score_factor))
+}
+
+# 3. Core Equating Logic (to be used in bootstrap)
+equate_stat_fun <- function(data, i) {
+  sample_data <- data[i, ]
+  freq_x <- get_freq_dist(sample_data$x, attr(eq@data[[forms[1]]], "range"))
+  freq_y <- get_freq_dist(sample_data$y, attr(eq@data[[forms[2]]], "range"))
+
+  # --- Apply Smoothing ---
+  # This is a simplified example; a full implementation would pass more options
+  # and handle different smoothers more robustly.
+  switch(smooth_code,
+         "N" = {
+           crfd_x <- cumsum(freq_x / sum(freq_x))
+           crfd_y <- cumsum(freq_y / sum(freq_y))
+         },
+         "B" = {
+           # Placeholder for Beta-Binomial; requires n_items, moments, etc.
+           # For now, falls back to no smoothing
+           crfd_x <- cumsum(freq_x / sum(freq_x))
+           crfd_y <- cumsum(freq_y / sum(freq_y))
+         },
+         # Add other cases for L, S, K, Z here
+         { # Default case (no smoothing)
+           crfd_x <- cumsum(freq_x / sum(freq_x))
+           crfd_y <- cumsum(freq_y / sum(freq_y))
+         }
+  )
+
+  # --- Perform Equating ---
+  prdx <- perc_rank(x = attr(eq@data[[forms[1]]], "range"),#get_freq_dist(sample_data$x, attr(eq@data[[forms[1]]], "range")),
+                    min = attr(eq@data[[forms[1]]],"min"), max = attr(eq@data[[forms[1]]],"max"), inc = attr(eq@data[[forms[1]]],"inc"), crfd = crfd_x)
+  eraw <- EquiEquate(nsy = length(attr(eq@data[[forms[2]]], "range")), miny =  attr(eq@data[[forms[2]]],"min"), incy = attr(eq@data[[forms[2]]],"inc"), crfdy = crfd_y, nsx = length(attr(eq@data[[forms[1]]], "range")), prdx = prdx)
+  return(eraw)
+}
 
 equipercentile_sgrg <- function(eq, forms, title, boot_type = "perc", boot_replications = 1000) {
 
@@ -22,47 +65,6 @@ equipercentile_sgrg <- function(eq, forms, title, boot_type = "perc", boot_repli
   })))
   names(dat) <- c("x", "y")
 
-
-  # Helper to create a frequency distribution on the full score range
-  get_freq_dist <- function(scores, score_range) {
-    # Ensure all levels from min to max score are included
-    score_factor <- factor(scores, levels = score_range)
-    as.vector(table(score_factor))
-  }
-
-  # 3. Core Equating Logic (to be used in bootstrap)
-  equate_stat_fun <- function(data, i) {
-    sample_data <- data[i, ]
-    freq_x <- get_freq_dist(sample_data$x, attr(eq@data[[forms[1]]], "range"))
-    freq_y <- get_freq_dist(sample_data$y, attr(eq@data[[forms[2]]], "range"))
-
-    # --- Apply Smoothing ---
-    # This is a simplified example; a full implementation would pass more options
-    # and handle different smoothers more robustly.
-    switch(smooth_code,
-           "N" = {
-             crfd_x <- cumsum(freq_x / sum(freq_x))
-             crfd_y <- cumsum(freq_y / sum(freq_y))
-           },
-           "B" = {
-             # Placeholder for Beta-Binomial; requires n_items, moments, etc.
-             # For now, falls back to no smoothing
-             crfd_x <- cumsum(freq_x / sum(freq_x))
-             crfd_y <- cumsum(freq_y / sum(freq_y))
-           },
-           # Add other cases for L, S, K, Z here
-           { # Default case (no smoothing)
-             crfd_x <- cumsum(freq_x / sum(freq_x))
-             crfd_y <- cumsum(freq_y / sum(freq_y))
-           }
-    )
-
-    # --- Perform Equating ---
-    prdx <- perc_rank(x = attr(eq@data[[forms[1]]], "range"),#get_freq_dist(sample_data$x, attr(eq@data[[forms[1]]], "range")),
-                      min = attr(eq@data[[forms[1]]],"min"), max = attr(eq@data[[forms[1]]],"max"), inc = attr(eq@data[[forms[1]]],"inc"), crfd = crfd_x)
-    eraw <- EquiEquate(nsy = length(attr(eq@data[[forms[2]]], "range")), miny =  attr(eq@data[[forms[2]]],"min"), incy = attr(eq@data[[forms[2]]],"inc"), crfdy = crfd_y, nsx = length(attr(eq@data[[forms[1]]], "range")), prdx = prdx)
-    return(eraw)
-  }
 
   # 4. Bootstrapping and Result Formatting
   if (boot_replications <= 1) {
@@ -82,20 +84,20 @@ equipercentile_sgrg <- function(eq, forms, title, boot_type = "perc", boot_repli
                                                    list(cbind(c(NA,NA), c(NA,NA))) |> `names<-`(sapply(boot_type, switch, "perc" = "percent")),
                                                    tryCatch({
                                                      # 1. Attempt to run with "bca"
-                                                     boot::boot.ci(equi_boot, index = i, type = boot_type, conf = c(0.5, 0.95))
+                                                     boot::boot.ci(equi_boot, index = i, type = boot_type, conf = c(0.5, 0.95)) |> `attr<-`('boot_type', boot_type)
                                                    },
                                                    error = function(e) {
                                                      # 2. If an error occurs, issue a warning
                                                      warning(paste(boot_type, "calculation failed. Switching to percentile (perc) method."), call. = FALSE)
                                                      # 3. Rerun with "perc"
-                                                     boot::boot.ci(equi_boot, index = i, type = "perc", conf = c(0.5, 0.95))
+                                                     boot::boot.ci(equi_boot, index = i, type = "perc", conf = c(0.5, 0.95)) |> `attr<-`('boot_type', 'perc')
                                                    }
                                                    )
                                                    )
                     )
 
     cis <- do.call(rbind, lapply(boots, \(x) {
-      ci_type <- sapply(boot_type, switch, "perc" = "percent")
+      ci_type <- sapply(attr(x, 'boot_type'), switch, , "perc" = "percent", "norm" = "normal", "basic" = "basic", "bca" = "bca")
       x_mat <- x[[ci_type]]
       c(x_mat[1,(ncol(x_mat) - 1):ncol(x_mat)], x_mat[2,(ncol(x_mat) - 1):ncol(x_mat)])
     })) |> `colnames<-`(c("lower_bound_50", "upper_bound_50", "lower_bound_95", "upper_bound_95"))
