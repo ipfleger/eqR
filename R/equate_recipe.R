@@ -390,7 +390,7 @@ add_method <- function(equate_recipe, method, type = "default", smooth = "none",
     }
   } else if (new_method$method == "E") {
     if (design %in% c("R", "S")) {
-      new_method$type <- "identity" # No subtypes for RG/SG
+      new_method$type <- "I" # No subtypes for RG/SG
     } else { # design == "CG"
       new_method$type <- switch(tolower(type),
                                 "default" = "E", "e" = "E", "frequency" = "E",
