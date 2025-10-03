@@ -34,6 +34,7 @@ corresponding scores on the old form's scale using the `perc_point` function.
 This is a direct implementation of the equipercentile equating method.
 }
 \examples{
+\dontrun{
 # Example data from Kolen & Brennan (2004), Table 2.4
 # Form X distribution
 freqs_x <- c(1, 2, 5, 8, 10, 15, 12, 8, 5, 3, 1)
@@ -52,6 +53,7 @@ crfd_y <- cumsum(freqs_y / sum(freqs_y))
 equated_scores <- EquiEquate(nsy = ns_y, miny = min_y, incy = inc_y,
                              crfdy = crfd_y, nsx = ns_x, prdx = prd_x)
 print(data.frame(x_score = 0:10, equated_y = equated_scores))
+}
 }
 \seealso{
 \code{\link{perc_point}}, \code{\link{perc_rank}}

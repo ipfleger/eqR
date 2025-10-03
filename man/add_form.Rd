@@ -11,7 +11,8 @@ add_form(
   id_cols = NULL,
   min_score = NULL,
   max_score = NULL,
-  inc = NULL
+  inc = NULL,
+  rel = NULL
 )
 }
 \arguments{
@@ -26,6 +27,9 @@ contain candidate identifiers.}
 
 \item{min_score, max_score, inc}{Optional numeric values to manually specify the
 score scale. If `NULL`, they are calculated from the data.}
+
+\item{rel}{Optional. The internal consistency reliability (e.g., Cronbach's Alpha)
+of the form. If `NULL`, it is calculated automatically.}
 }
 \value{
 The updated `equate_recipe` object containing the new form.

@@ -69,4 +69,5 @@ translation of `Smooth_BLL`.
 }
 \seealso{
 \code{\link{iteration}}, \code{\link{design_matrix}}, \code{\link{equate_cll}}
+Perform Bivariate Log-Linear Smoothing
 }

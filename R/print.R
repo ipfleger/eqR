@@ -28,6 +28,7 @@
 #'   console.
 #'
 #' @examples
+#' \dontrun{
 #' # This is a conceptual example of how you would use it.
 #' # Assume 'pdata_list' and 'results_df' are returned from your main wrapper.
 #'
@@ -36,6 +37,7 @@
 #' #   pdata = pdata_list,
 #' #   conversion_table = results_df
 #' # )
+#' }
 print_cll_cg <- function(title, eq, pdata, conversion_table) {
 
   # --- 1. Header Section ---
@@ -73,13 +75,13 @@ print_cll_cg <- function(title, eq, pdata, conversion_table) {
   raw_from_scores <- rowSums(eq@data[[names(pdata[1])]][!colnames(eq@data[[names(pdata[1])]]) %in% get_anchors(eq)[[paste0(names(pdata), collapse =";")]]], na.rm = TRUE)
   raw_to_scores <- rowSums(eq@data[[names(pdata[2])]][!colnames(eq@data[[names(pdata[2])]]) %in% get_anchors(eq)[[paste0(names(pdata), collapse =";")]]], na.rm = TRUE)
   convert <- function(conversion_table){
-    function(x)   conversion_table[x+1,]
+    function(x)    conversion_table[x+1,]
   }
   converted_scores = convert(conversion_table)(raw_from_scores)
   # Calculate moments for each column of equated scores
   # moments_list <- c(list(raw_to_scores =  get_moments(scores = raw_to_scores,
   #                                                     rel_freq = raw_to_scores/sum(raw_to_scores))),
-  #                        lapply(converted_scores[,-grep("^se$|bound", colnames(converted_scores))], function(col) {
+  #                   lapply(converted_scores[,-grep("^se$|bound", colnames(converted_scores))], function(col) {
   #   get_moments(scores = converted_scores$score, rel_freq = col / sum(col, na.rm = TRUE))
   # }))
 
@@ -120,8 +122,8 @@ print_linear_sgrg <- function(title, pdata) {
   cli::cli_h2("Equated Raw Scores")
 
 
-conversion_table <- data.frame(score = pdata$x_score, equivalent_score = pdata$equivalent_score,
-                               bootstrapped_estimate = pdata$bootstrapped_estimate, pdata$nested_intervals)
+  conversion_table <- data.frame(score = pdata$x_score, equivalent_score = pdata$equivalent_score,
+                                 bootstrapped_estimate = pdata$bootstrapped_estimate, pdata$nested_intervals)
   # Use print() with options for nice formatting
   print(
     conversion_table,
@@ -137,13 +139,13 @@ conversion_table <- data.frame(score = pdata$x_score, equivalent_score = pdata$e
   raw_from_scores <- pdata$observed_scores_x
   raw_to_scores <- pdata$observed_scores_y
   convert <- function(conversion_table){
-    function(x)   conversion_table[x+1,]
+    function(x)    conversion_table[x+1,]
   }
   converted_scores = convert(conversion_table)(raw_from_scores)
   # Calculate moments for each column of equated scores
   # moments_list <- c(list(raw_to_scores =  get_moments(scores = raw_to_scores,
   #                                                     rel_freq = raw_to_scores/sum(raw_to_scores))),
-  #                        lapply(converted_scores[,-grep("^se$|bound", colnames(converted_scores))], function(col) {
+  #                   lapply(converted_scores[,-grep("^se$|bound", colnames(converted_scores))], function(col) {
   #   get_moments(scores = converted_scores$score, rel_freq = col / sum(col, na.rm = TRUE))
   # }))
 
@@ -290,4 +292,3 @@ summary.linear_cg <- function(results_list, title = "Comparative Summary of Line
   # Return the summary data frame invisibly
   summary_df
 }
-

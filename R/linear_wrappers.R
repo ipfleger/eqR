@@ -9,15 +9,6 @@ linear <- function(forms, design, eq, title, boot_type = "perc", boot_replicatio
   }
 }
 
-equipercentile <- function(forms, design, eq, title, boot_type = "perc", boot_replications = 1000){
-  if(design %in% c("S", "R")) {
-    equipercentile_sgrg(eq = eq, forms = forms, title = title, boot_type = boot_type, boot_replications = boot_replications)
-  } else if (design == "CG") {
-    anchors <- get_anchors(eq)
-    equipercentile_cg(eq = eq, forms = forms, anchors = anchors[[paste0(forms, collapse = ";")]], title = title, boot_type = boot_type, boot_replications = boot_replications)
-  }
-}
-
 linear_sgrg <- function(eq, forms, title, boot_type = "perc", boot_replications = 1000){
 
   # Get all options, merged with defaults
@@ -91,9 +82,9 @@ linear_sgrg <- function(eq, forms, title, boot_type = "perc", boot_replications 
     )) |> `names<-`(method_name)
   }
 
-  results <- lapply(names(results) |> `names<-`(names(results)), \(method){
-    print_linear_sgrg(title = paste0(method, ": ", paste0(forms, collapse = " to ")), pdata = results[[method]])
-  })
+  # results <- lapply(names(results) |> `names<-`(names(results)), \(method){
+  #   print_linear_sgrg(title = paste0(method, ": ", paste0(forms, collapse = " to ")), pdata = results[[method]])
+  # })
 
   # Return the raw results, ready for the summary function
   return(results)
@@ -173,9 +164,9 @@ linear_cg <- function(eq, forms, anchors, title, boot_type = "perc", boot_replic
            observed_scores_x = dat[[1]], observed_scores_y = dat[[2]])
     })
   }
-  results <- lapply(names(results) |> `names<-`(names(results)), \(method){
-    print_linear_cg(title = paste0(method, ": ", paste0(forms, collapse = " to ")), pdata = results[[method]])
-  })
+  # results <- lapply(names(results) |> `names<-`(names(results)), \(method){
+  #   print_linear_cg(title = paste0(method, ": ", paste0(forms, collapse = " to ")), pdata = results[[method]])
+  # })
   # Return the raw results, ready for the summary function
   return(results)
 }

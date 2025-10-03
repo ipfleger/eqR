@@ -31,11 +31,13 @@ specified with high precision (e.g., at least eight digits), especially
 when the increment is a repeating decimal.
 }
 \examples{
+\dontrun{
 # For a sequence of scores from 10 to 20 with an increment of 2,
 # the scores are 10, 12, 14, 16, 18, 20. There are 6 scores in total.
 number_of_scores <- nscores(max = 20, min = 10, inc = 2)
 print(number_of_scores)
 #> [1] 6
+}
 }
 \seealso{
 \code{\link{loc}}

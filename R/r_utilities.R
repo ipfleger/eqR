@@ -1,3 +1,15 @@
+equate <- function(forms, method, design, type, eq, title,
+                   boot_type = "perc", boot_replications = 1000){
+  if(method == "L"){
+    linear(forms = forms, design = design, eq = eq, title = title, boot_type = boot_type, boot_replications = boot_replications)
+  } else if(method == "E"){
+    equipercentile(forms = forms, design = design, eq = eq, title = title, boot_type = boot_type, boot_replications = boot_replications)
+  } else if(method == "IRT"){
+    irt(forms = forms, design = design, type = type, eq = eq, title = title, boot_type = boot_type, boot_replications = boot_replications)
+  }
+}
+
+
 get_anchors <- function(eq){
   lapply(1:nrow(eq@plan) |> `names<-`(apply(eq@plan, 1, paste0,collapse = ";")), \(i) eq@forms[[eq@plan[i,"from"]]][eq@forms[[eq@plan[i,"from"]]] %in% eq@forms[[eq@plan[i,"to"]]]])
 }
@@ -52,15 +64,16 @@ define_range <- function(eq, form, method_options){
 #'   \item{inc}{The final score increment.}
 #'   \item{range}{A numeric vector representing the full sequence of scores.}
 #'   \item{num_sum}{A quantile summary of the observed total scores.}
-#' @export
 #'
 #' @examples
+#' \dontrun{
 #' # Create a sample item data frame
 #' sample_ctabs <- data.frame(
 #'   item1 = c(0, 1, 1, 0),
 #'   item2 = c(0, 0, 1, 1),
 #'   item3 = c(0, 1, 0, 1)
 #' )
+#' }
 equate <- function(forms, method, design, type, eq, title,
                    boot_type = "perc", boot_replications = 1000){
   if(method == "L"){
@@ -72,15 +85,26 @@ equate <- function(forms, method, design, type, eq, title,
   }
 }
 
+#' KR20
+kr20 <- function(ctabs, k = NULL){
+  k <- k %||% ncol(ctabs)
+  p = colMeans(ctabs, na.rm = TRUE)
+  q = 1-p
+  sd = apply(ctabs, 2, sd, na.rm = TRUE)
+  r = suppressWarnings(cor(rowSums(ctabs, na.rm = TRUE), ctabs, use = "p")[1,])
+  r[is.na(r)] <- 0
+  ire = r*sd
+  k/(k - 1) * (1 - sum(p * q)/sum(ire)^2)
+}
 
+#' Calculate and return all data attributes for a form
 #'
-#' # Get the range automatically and print the summary
-#' range_info <- get_range(sample_ctabs, verbose = TRUE)
-#'
-#' # Get the range with a manual override for the minimum score
-#' range_override <- get_range(sample_ctabs, min_score = 0)
+#' @param data A data frame of item scores.
+#' @param min_score, max_score, inc, rel Optional user-supplied values.
+#' @return A list of all attributes for the form.
+#' @noRd
 
-get_range <- function(ctabs, form_name = NULL, min_score = NULL, max_score = NULL, inc = NULL, verbose = TRUE){
+get_form_attributes <- function(ctabs, form_name = NULL, min_score = NULL, max_score = NULL, inc = NULL, verbose = TRUE, rel = NULL){
 
   # Calculate range parameters automatically from the data
   points <- apply(ctabs, 2, max, na.rm = TRUE)
@@ -96,17 +120,23 @@ get_range <- function(ctabs, form_name = NULL, min_score = NULL, max_score = NUL
   total_scores <- rowSums(ctabs, na.rm = TRUE)
   num_sum <- quantile(total_scores)
 
+
+  k <- ncol(ctabs)
+  if(is.null(rel)){
+    rel <- kr20(ctabs, k = k)
+  }
+
   # If verbose is TRUE, print the summary to the console
   if (verbose) {
     # Using the cli package for formatted output
     cli::cli_h1("Data Check:")
-    cli::cli_inform("{form_name%||%'Score Summary'}: min = {min_val}, max = {max_val}, inc = {inc}")
+    cli::cli_inform("{form_name%||%'Score Summary'}: min = {min_val}, max = {max_val}, inc = {inc}, rel = {round(rel,2)}")
     print(num_sum)
     cli::cli_rule()
   }
 
   # Return the list of calculated values
-  list(min = min_val, max = max_val, inc = inc, range = score_range, num_sum = num_sum, points = points)
+  list(min = min_val, max = max_val, inc = inc, range = score_range, num_sum = num_sum, points = points, rel = rel, k = k, n = nrow(ctabs))
 }
 
 #' Print a Summary of Equating Results Object
@@ -114,7 +144,6 @@ get_range <- function(ctabs, form_name = NULL, min_score = NULL, max_score = NUL
 #' @param x An object of class `equate_results`.
 #' @param ... Additional arguments (not used).
 #' @return Invisibly returns the input object `x`.
-#' @export
 print.equate_results <- function(x, ...) {
   cli::cli_h1("Equating Results")
   cli::cli_text("This is an `equate_results` object. It contains the results of one or more equating plans.")
@@ -147,7 +176,6 @@ print.equate_results <- function(x, ...) {
 #' @return A nested list where each element corresponds to an equating plan.
 #'   Each plan's element is a list containing the summary components
 #'   (tables and plots) for that specific plan.
-#' @export
 summarize_equating_results <- function(results_object, ...) {
 
   all_summaries <- list()

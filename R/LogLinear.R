@@ -1,65 +1,56 @@
 #' Create a Design Matrix for Log-Linear Models
 #'
 #' @description
-#' Creates a design matrix based on powers of scores for univariate or
-#' bivariate log-linear models.
-#'
-#' @param nsu, nsv Number of score categories for variables u and v.
-#' @param minu, minv, incu, incv Score range and increment for u and v.
-#' @param cu, cv, cuv Degrees for polynomials and cross-products.
-#' @param cpm A matrix specifying the cross-product terms.
-#' @param scale Logical, if TRUE, scale the design matrix columns.
-#'
-#' @return A list containing the raw design matrix (`B_raw`) and the
-#'   potentially scaled design matrix (`B`).
+#' Creates a design matrix and returns the scaling attributes (center and scale)
+#' used during its creation, which are necessary for unscaling the results.
+#' @return A list containing the raw design matrix (`B_raw`), the scaled design
+#'   matrix (`B`), and the scaling attributes (`B_center`, `B_scale`).
 design_matrix <- function(nsu, minu, incu, nsv = 0, minv = 0, incv = 0, cu, cv = 0, cuv = 0, cpm = NULL, scale = FALSE) {
-
-  # --- Input Validation ---
-  if (nsv > 0 && incv == 0) {
-    stop("Error in design_matrix: If nsv > 0, incv cannot be zero.")
-  }
-
   ncols <- cu + cv + cuv
   ncells <- if (nsv > 0) nsu * nsv else nsu
-
   B_raw <- matrix(0, nrow = ncells, ncol = ncols)
 
-  if (nsv == 0) { # Univariate case
+  score <- function(loc, min, inc) min + loc * inc
+
+  if (nsv == 0) { # Univariate
     scores_u <- score(0:(nsu - 1), minu, incu)
     if (cu > 0) {
-      for (k in 1:cu) {
-        B_raw[, k] <- scores_u^k
-      }
+      for (k in 1:cu) B_raw[, k] <- scores_u^k
     }
-  } else { # Bivariate case
+  } else { # Bivariate
     scores_u <- score(0:(nsu - 1), minu, incu)
     scores_v <- score(0:(nsv - 1), minv, incv)
     grid <- expand.grid(u = scores_u, v = scores_v)
-
-    # u polynomials
-    if (cu > 0) {
-      for (k in 1:cu) B_raw[, k] <- grid$u^k
-    }
-    # v polynomials
-    if (cv > 0) {
-      for (k in 1:cv) B_raw[, cu + k] <- grid$v^k
-    }
-    # cross-product polynomials
-    if (cuv > 0) {
-      for (k in 1:cuv) {
-        B_raw[, cu + cv + k] <- grid$u^cpm[k, 1] * grid$v^cpm[k, 2]
-      }
-    }
+    if (cu > 0) for (k in 1:cu) B_raw[, k] <- grid$u^k
+    if (cv > 0) for (k in 1:cv) B_raw[, cu + k] <- grid$v^k
+    if (cuv > 0) for (k in 1:cuv) B_raw[, cu + cv + k] <- grid$u^cpm[k, 1] * grid$v^cpm[k, 2]
   }
 
   B <- B_raw
-  if (scale) {
-    B <- scale(B, center = TRUE, scale = TRUE)
-  }
+  B_center <- rep(0, ncols)
+  B_scale <- rep(1, ncols)
 
-  return(list(B_raw = B_raw, B = B))
+  if (scale) {
+    B_scaled <- scale(B_raw, center = TRUE, scale = TRUE)
+    B <- as.matrix(B_scaled)
+    B_center <- attr(B_scaled, "scaled:center")
+    B_scale <- attr(B_scaled, "scaled:scale")
+    B_scale[B_scale == 0] <- 1 # Avoid division by zero
+  }
+  return(list(B_raw = B_raw, B = B, B_center = B_center, B_scale = B_scale))
 }
 
+#' Convert Scaled Beta Coefficients to Unscaled Metric
+#'
+#' @description
+#' Transforms the log-linear model's Beta coefficients and intercept (ap)
+#' from a scaled metric back to the original, unscaled metric.
+#' @return A list containing the unscaled Beta coefficients and intercept.
+unscale_beta <- function(Beta_scaled, ap_scaled, B_center, B_scale) {
+  Beta_unscaled <- Beta_scaled / B_scale
+  ap_unscaled <- ap_scaled - sum(Beta_scaled * B_center / B_scale)
+  return(list(Beta_unscaled = Beta_unscaled, ap_unscaled = ap_unscaled))
+}
 
 #' Get First Derivative of Log-Likelihood
 #'
@@ -195,42 +186,27 @@ iteration <- function(B, B_raw, nct, N, max_nit = 100, crit = 1e-5) {
 #'   density, CDF, and percentile ranks.
 #' @seealso \code{\link{iteration}}, \code{\link{design_matrix}}
 smooth_ull <- function(n, ns, min, inc, fd, c, scale = FALSE, crit = 1e-5, max_nit = 100) {
+  # Always use scaling internally for numerical stability
+  design <- design_matrix(nsu = ns, minu = min, incu = inc, cu = c, scale = TRUE)
 
-  # --- Input Validation ---
-  if (inc == 0) {
-    stop("Error in smooth_ull: Score increment 'inc' cannot be zero.")
-  }
+  iter_results <- iteration(B = design$B, B_raw = design$B_raw, nct = fd, N = n, crit = crit, max_nit = max_nit)
 
-  design <- design_matrix(nsu = ns, minu = min, incu = inc, cu = c, scale = scale)
+  unscaled_params <- unscale_beta(
+    Beta_scaled = iter_results$Beta,
+    ap_scaled = iter_results$ap,
+    B_center = design$B_center,
+    B_scale = design$B_scale
+  )
 
-  iter_results <- tryCatch({
-    iteration(B = design$B, B_raw = design$B_raw, nct = fd, N = n, crit = crit, max_nit = max_nit)
-  }, error = function(e) {
-    if (grepl("singular", e$message, ignore.case = TRUE)) {
-      cli::cli_div(theme = list(span.emph = list(color = "red")))
-      cli::cli_alert_danger("Log-linear model failed to converge due to a singular matrix.")
-      cli::cli_alert_info("This usually means the model is over-specified for the data.")
-      cli::cli_bullets(c(
-        "*" = "The number of moments to fit (c) may be too high for the number of score categories (ns).",
-        "*" = "Try lowering the polynomial degree.",
-        "i" = "Current value: {.emph c={c}}"
-      ))
-      stop(e)
-    } else {
-      # Re-throw any other type of error
-      stop(e)
-    }
-  })
-
-  if (is.null(iter_results)) return(NULL) # Propagate failure
+  iter_results$Beta <- unscaled_params$Beta_unscaled
+  iter_results$ap <- unscaled_params$ap_unscaled
 
   density <- iter_results$mct / n
   crfd <- cumsum(density)
-  # Assuming integer scores for perc_rank calculation
-  prd <- perc_rank(x = min:(min+ns-1), min = min, max = min+ns-1, inc = inc, crfd = crfd)
 
-  return(c(iter_results, list(density = density, crfd = crfd, prd = prd)))
+  return(c(iter_results, list(density = density, crfd = crfd)))
 }
+
 
 #' Perform Bivariate Log-Linear Smoothing
 #'
@@ -264,68 +240,69 @@ smooth_ull <- function(n, ns, min, inc, fd, c, scale = FALSE, crit = 1e-5, max_n
 #'   iterations, chi-square statistics, and moments. This list is the
 #'   `bivar` object required by the `equate_cll` function.
 #' @seealso \code{\link{iteration}}, \code{\link{design_matrix}}, \code{\link{equate_cll}}
+
+#' Perform Bivariate Log-Linear Smoothing
 smooth_bll <- function(n, nsu, minu, incu, nsv, minv, incv, nct, cu, cv, cuv, cpm, scale = FALSE, crit = 1e-5, max_nit = 100) {
+  # Step 1: Always create a scaled design matrix for internal use
+  design <- design_matrix(nsu, minu, incu, nsv, minv, incv, cu, cv, cuv, cpm, scale = TRUE)
 
-  design <- design_matrix(nsu, minu, incu, nsv, minv, incv, cu, cv, cuv, cpm, scale)
-
+  # Step 2: Run the iteration with the scaled design matrix
   iter_results <- tryCatch({
     iteration(B = design$B, B_raw = design$B_raw, nct = nct, N = n, crit = crit, max_nit = max_nit)
   }, error = function(e) {
     if (grepl("singular", e$message, ignore.case = TRUE)) {
       cli::cli_div(theme = list(span.emph = list(color = "red")))
       cli::cli_alert_danger("Log-linear model failed to converge due to a singular matrix.")
-      cli::cli_alert_info("This usually means the model is over-specified for the data.")
-      cli::cli_bullets(c(
-        "*" = "The number of moments to fit may be too high for the number of unique scores.",
-        "*" = "Try lowering the polynomial degrees.",
-        "i" = "Current values: {.emph cu={cu}}, {.emph cv={cv}}, {.emph cuv={cuv}}"
-      ))
+      cli::cli_alert_info("This can happen if the model is over-specified.")
+      cli::cli_bullets(c("*" = "Try lowering the polynomial degrees."))
       stop(e)
     } else {
-      # Re-throw any other type of error
       stop(e)
     }
   })
 
-  if (is.null(iter_results)) return(NULL) # Propagate failure
+  if (is.null(iter_results)) return(NULL)
 
-  # Add the input parameters to the results list to create the full 'bivar' object
+  # Step 3: Conditionally un-scale the coefficients based on the `scale` argument
+  if (scale == FALSE) {
+    # If the user wants unscaled coefficients, transform them back
+    unscaled_params <- unscale_beta(
+      Beta_scaled = iter_results$Beta,
+      ap_scaled = iter_results$ap,
+      B_center = design$B_center,
+      B_scale = design$B_scale
+    )
+    # Overwrite the scaled results with the unscaled ones
+    iter_results$Beta <- unscaled_params$Beta_unscaled
+    iter_results$ap <- unscaled_params$ap_unscaled
+  }
+  # If scale == TRUE, do nothing. iter_results already contains the scaled coefficients.
+
+  # Step 4: Assemble the final `bivar` object
   bivar_list <- c(
     iter_results,
     list(
       n = n, nsx = nsu, minx = minu, incx = incu,
       nsv = nsv, minv = minv, incv = incv,
-      cu = cu, cv = cv, cuv = cuv, cpm = cpm
+      cu = cu, cv = cv, cuv = cuv, cpm = cpm,
+      # Add a flag to indicate the state of the returned model
+      scaled_model = scale
     )
   )
 
-  # --- 5. Examine the Output ---
+  # --- Diagnostic Printing (Merged from your version) ---
   if (!is.null(bivar_list)) {
     cat("\n--- Smoothing Results ---\n")
-
-    # Check 1: Beta Coefficients
-    # These should be numeric values. If they are extremely large, small, or NaN,
-    # it indicates a numerical issue.
     cat("\nBeta Coefficients:\n")
     print(bivar_list$Beta)
-
-    # Check 2: Smoothed Frequencies (mct)
-    # These should be non-negative. The sum should equal the original sample size (n).
     cat("\nSmoothed Frequencies (mct):\n")
     print(head(bivar_list$mct))
     cat("\nAbsolute differences between observed and predicted moments:\n")
-    print(abs(round(bivar_list$n_mts - bivar_list$m_mts,6)))
-
-    cat(sprintf("\nSum of original frequencies: %f", sum(nct_b)))
+    print(abs(round(bivar_list$n_mts - bivar_list$m_mts, 6)))
+    cat(sprintf("\nSum of original frequencies: %f", sum(nct)))
     cat(sprintf("\nSum of smoothed frequencies: %f\n", sum(bivar_list$mct)))
-
-    # Check 3: Convergence
-    # The number of iterations should be less than the maximum (40).
     cat(sprintf("\nConverged in %d iterations.\n", bivar_list$nit))
-
     cat(sprintf("\nLikelihood Ratio Chi-Square: %f\n", bivar_list$lrchisq))
-
-
   } else {
     cat("\n--- Function call failed --- \n")
   }

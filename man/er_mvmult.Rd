@@ -25,9 +25,11 @@ function returns a new vector containing the result, which is the standard
 convention in R.
 }
 \examples{
+\dontrun{
 M <- matrix(1:6, nrow = 2, ncol = 3)
 V <- c(1, 2, 3)
 er_mvmult(M, V) # Expected: c(14, 32)
+}
 }
 \author{
 Jaehoon Seol (Original C code), Google's Gemini (R translation)

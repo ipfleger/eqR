@@ -10,7 +10,13 @@ equate_recipe <- S7::new_class(
     methods  = S7::class_list
   )
 )
-# Constructor to initialize the recipe
+
+.onLoad <- function(...) {
+  S7::methods_register()
+}
+
+#' Constructor to initialize the recipe
+#' @export
 init_equating <- function() {
   equate_recipe()
 }
@@ -29,23 +35,28 @@ init_equating <- function() {
 #' contain candidate identifiers.
 #' @param min_score,max_score,inc Optional numeric values to manually specify the
 #'   score scale. If `NULL`, they are calculated from the data.
+#' @param rel Optional. The internal consistency reliability (e.g., Cronbach's Alpha)
+#'   of the form. If `NULL`, it is calculated automatically.
 #'
 #' @return The updated `equate_recipe` object containing the new form.
 #' @export
-add_form <- function(equate_recipe, crosstabs, name, id_cols = NULL, min_score = NULL, max_score = NULL, inc = NULL) {
+add_form <- function(equate_recipe, crosstabs, name, id_cols = NULL, min_score = NULL, max_score = NULL, inc = NULL, rel = NULL) {
 
   data_cols <- !colnames(crosstabs) %in% id_cols
   form_data <- crosstabs[, data_cols]
 
   # Get the score scale attributes
-  range_attrs <- get_range(form_data, form_name = name, min_score = min_score, max_score = max_score, inc = inc)
+  attrs <- get_form_attributes(form_data, form_name = name, min_score = min_score, max_score = max_score, inc = inc, rel = rel)
 
   # Safely attach the attributes to the data frame
-  attr(form_data, "min") <- range_attrs$min
-  attr(form_data, "max") <- range_attrs$max
-  attr(form_data, "inc") <- range_attrs$inc
-  attr(form_data, "range") <- range_attrs$range
-  attr(form_data, "points") <- range_attrs$points
+  attr(form_data, "min") <- attrs$min
+  attr(form_data, "max") <- attrs$max
+  attr(form_data, "inc") <- attrs$inc
+  attr(form_data, "range") <- attrs$range
+  attr(form_data, "points") <- attrs$points
+  attr(form_data, "n") <- attrs$n
+  attr(form_data, "k") <- attrs$k
+  attr(form_data, "rel") <- attrs$rel
 
   equate_recipe@forms[[name]] <- colnames(form_data)
   equate_recipe@data[[name]] <- form_data
@@ -73,6 +84,7 @@ add_form <- function(equate_recipe, crosstabs, name, id_cols = NULL, min_score =
 #' @export
 #'
 #' @examples
+#' \dontrun{
 #' recipe <- init_equating() |>
 #'   add_form(form_a_data, name = "Form A") |>
 #'   add_form(form_b_data, name = "Form B") |>
@@ -91,6 +103,7 @@ add_form <- function(equate_recipe, crosstabs, name, id_cols = NULL, min_score =
 #'
 #' # Example 3: Auto-generate all possible pairings.
 #' recipe <- add_plan(recipe)
+#' }
 add_plan <- function(equate_recipe, ...) {
 
   plan_formulas <- list(...)
@@ -152,26 +165,31 @@ add_plan <- function(equate_recipe, ...) {
 #' @param design A character string describing the study design. Accepts common
 #' names and abbreviations for single-group ("S"), random-groups ("R"), or
 #' common-item/nonequivalent groups ("CG") designs.
-#'
+#' @param counter_balance_by Character vector of length 1. The name of the id_col to use in single group equating.
 #' @return The updated `equate_recipe` object with the normalized `@design` field.
 #' @export
 #'
 #' @examples
+#' \dontrun{
 #' equate_recipe |> add_design("single")
 #' equate_recipe |> add_design("random-groups")
 #' equate_recipe |> add_design("common-item nonequivalent")
-add_design <- function(equate_recipe, design) {
+#' }
+add_design <- function(equate_recipe, design, counter_balance_by = NULL) {
   design <- tolower(design)
 
   # Match normalized design codes
   if (design %in% c("single", "single-group","single group", "s", "sg")) {
-    equate_recipe@design <- "S"
+    cli::cli_inform("Single Group Design {ifelse(is.null(counter_balance_by), 'Without', 'With')} Counter Balancing")
+    equate_recipe@design <- ("S") |> `attr<-`("counter_balance_by", counter_balance_by)
   } else if (design %in% c("random", "random-groups", "r", "rg")) {
+    cli::cli_inform("Random/Equivalent Groups Design")
     equate_recipe@design <- "R"
   } else if (design %in% c(
     "common-item", "common", "common-item nonequivalent", "common-item non-equivalent",
-    "non-equivalent", "nonequivalent", "ne", "cg", "c"
+    "non-equivalent", "nonequivalent", "ne", "cg", "c", "n"
   )) {
+    cli::cli_inform("Common Item/Non-Equivalent Groups Design")
     equate_recipe@design <- "CG"
   } else {
     cli::cli_abort("Unknown design type: '{design}'")
@@ -236,17 +254,6 @@ get_method_options <- function(method_spec) {
   return(final_options)
 }
 
-equate <- function(forms, method, design, type, eq, title,
-                   boot_type = "perc", boot_replications = 1000){
-  if(method == "L"){
-    linear(forms = forms, design = design, eq = eq, title = title, boot_type = boot_type, boot_replications = boot_replications)
-  } else if(method == "E"){
-    equipercentile(forms = forms, design = design, eq = eq, title = title, boot_type = boot_type, boot_replications = boot_replications)
-  } else if(method == "IRT"){
-    irt(forms = forms, design = design, type = type, eq = eq, title = title, boot_type = boot_type, boot_replications = boot_replications)
-  }
-}
-
 #' Add an equating method to a recipe
 #'
 #' This function adds a specific equating method, including its calculation type
@@ -308,18 +315,17 @@ equate <- function(forms, method, design, type, eq, title,
 #' \itemize{
 #'   \item \code{smooth = "none"}: (Default) No smoothing is applied.
 #'   \item \code{smooth = "beta_binomial"}: Four-parameter beta-binomial smoothing.
-#'     \itemize{
-#'       \item \code{nparm}: The number of parameters for the beta distribution (2 or 4). Integer. *Default: \code{4}*.
-#'       \item \code{rel}: The reliability of the test (e.g., KR-20). Numeric. *Default: \code{0.85}*.
-#'     }
+#'   \itemize{
+#'     \item \code{nparm}: The number of parameters for the beta distribution (2 or 4). Integer. *Default: \code{4}*.
+#'   }
 #'   \item \code{smooth = "log_linear"}: Univariate log-linear presmoothing.
-#'     \itemize{
-#'       \item \code{degree}: The degree of the polynomial to fit. Integer. *Default: \code{3}*.
-#'     }
+#'   \itemize{
+#'     \item \code{degree}: The degree of the polynomial to fit. Integer. *Default: \code{3}*.
+#'   }
 #'   \item \code{smooth = "cubic_spline"}: Post-smoothing using cubic splines.
-#'     \itemize{
-#'       \item \code{s}: The smoothing parameter. Numeric. *Default: \code{0.2}*.
-#'     }
+#'   \itemize{
+#'     \item \code{s}: The smoothing parameter. Numeric. *Default: \code{0.2}*.
+#'   }
 #'   \item \code{smooth = "kernel"}: Kernel equating, which uses a continuized score distribution.
 #' }
 #'
@@ -331,11 +337,13 @@ equate <- function(forms, method, design, type, eq, title,
 #' }
 #'
 #' @examples
+#' \dontrun{
 #' recipe <- init_equating() |> add_design("common-item")
 #' # Add a linear method that runs both Tucker and Chained equating
 #' recipe <- recipe |> add_method("linear", type = c("tucker", "chained"))
 #' # Add a mean equating method (slope fixed to 1)
 #' recipe <- recipe |> add_method("linear", type = "tucker", mean_only = TRUE)
+#' }
 add_method <- function(equate_recipe, method, type = "default", smooth = "none", ...) {
   # --- 1. Input Validation ---
   if (!length(equate_recipe@design)) {
@@ -352,7 +360,7 @@ add_method <- function(equate_recipe, method, type = "default", smooth = "none",
   new_method <- list()
   new_method$options <- args
 
-  # Normalize primary method [cite: 135-138]
+  # Normalize primary method
   new_method$method <- switch(method_norm,
                               "linear" = "L",
                               "equipercentile" = "E",
@@ -360,7 +368,7 @@ add_method <- function(equate_recipe, method, type = "default", smooth = "none",
                               cli::cli_abort("Unknown method: '{method}'. Choose 'linear', 'equipercentile', or 'irt'.")
   )
 
-  # Normalize smoothing type [cite: 140-145]
+  # Normalize smoothing type
   new_method$smooth <- switch(smooth_norm,
                               "none" = "N",
                               "beta_binomial" = "B",

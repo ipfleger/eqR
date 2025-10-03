@@ -39,6 +39,7 @@ For linear equating, the slope is the ratio of the standard deviations.
 It then applies this transformation to a sequence of raw scores.
 }
 \examples{
+\dontrun{
 # Example data for linear equating
 mean_x <- 25; sd_x <- 5
 mean_y <- 50; sd_y <- 10
@@ -49,6 +50,7 @@ result <- linear_equate_rgsg(mean_x, sd_x, mean_y, sd_y, mean_only = FALSE,
 print(result$a) # Slope should be 10/5 = 2
 print(result$b) # Intercept should be 50 - 2*25 = 0
 print(head(result$equated_scores))
+}
 }
 \author{
 R. L. Brennan (Original C code), Google's Gemini (R translation)

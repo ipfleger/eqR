@@ -27,11 +27,13 @@ The original C code notes that for best results, the input values should be
 specified with high precision (e.g., at least eight digits).
 }
 \examples{
+\dontrun{
 # Find the score at the 3rd index (4th position) in a sequence
 # starting at 10 with an increment of 2.
 the_score <- score(loc = 3, min = 10, inc = 2)
 print(the_score)
 #> [1] 16
+}
 }
 \seealso{
 \code{\link{loc}}

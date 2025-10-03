@@ -2,21 +2,11 @@
 % Please edit documentation in R/CLL_Equate.R
 \name{biv_exp_polynomial_vec}
 \alias{biv_exp_polynomial_vec}
-\title{Vectorized Bivariate Exponential Polynomial Calculation (Corrected)}
+\title{Vectorized Bivariate Exponential Polynomial Calculation}
 \usage{
 biv_exp_polynomial_vec(bivar, x, y)
 }
-\arguments{
-\item{bivar}{A `bivar` object from the smoothing process.}
-
-\item{x}{A vector of scores for the first variable (u).}
-
-\item{y}{A vector of scores for the second variable (v).}
-}
-\value{
-A numeric vector of results from the exponential polynomial calculation.
-}
 \description{
-A corrected, vectorized version that uses pre-calculated indices from the
-bivar object to correctly and efficiently build the design matrix.
+The core computational engine for the log-linear model's density function.
+This version is highly optimized for speed using matrix operations.
 }

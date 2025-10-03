@@ -1,4 +1,3 @@
-
 #' Perform Linear Equating for Random Groups and Single Group Designs
 #'
 #' @description
@@ -26,6 +25,7 @@
 #' @author R. L. Brennan (Original C code), Google's Gemini (R translation)
 #'
 #' @examples
+#' \dontrun{
 #' # Example data for linear equating
 #' mean_x <- 25; sd_x <- 5
 #' mean_y <- 50; sd_y <- 10
@@ -36,6 +36,7 @@
 #' print(result$a) # Slope should be 10/5 = 2
 #' print(result$b) # Intercept should be 50 - 2*25 = 0
 #' print(head(result$equated_scores))
+#' }
 linear_equate_rgsg <- function(mnx, sdx, mny, sdy, mean_only = FALSE, min_x, max_x, inc_x) {
 
   # Determine the slope 'a' based on the method

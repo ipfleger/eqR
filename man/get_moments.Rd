@@ -49,9 +49,11 @@ The `scores` can be provided as a vector. If `scores` is `NULL`, they are
 generated as a sequence from `min` to `max` with an increment of `inc`.
 }
 \examples{
+\dontrun{
 freqs <- c(1, 2, 5, 8, 10, 15, 12, 8, 5, 3, 1)
 score_vals <- 0:10
 get_moments(scores = score_vals, freq = freqs)
+}
 }
 \author{
 R. L. Brennan (Original C code), Google's Gemini (R translation)

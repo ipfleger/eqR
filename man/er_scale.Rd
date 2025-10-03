@@ -25,9 +25,11 @@ is designed to be more intuitive by taking the vector to be scaled as the
 primary argument and returning a new vector with the result.
 }
 \examples{
+\dontrun{
 v <- c(10, 20, 30)
 s <- 0.5
 er_scale(v, s) # Expected: c(5, 10, 15)
+}
 }
 \author{
 Jaehoon Seol (Original C code), Google's Gemini (R translation)

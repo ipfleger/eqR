@@ -29,10 +29,12 @@ place, whereas this R function returns a new vector containing the result,
 which is more idiomatic for R.
 }
 \examples{
+\dontrun{
 y <- c(10, 20, 30)
 x <- c(1, 2, 3)
 a <- 2
 er_daxpy(y, a, x) # Expected: 2*c(1,2,3) + c(10,20,30) = c(12, 24, 36)
+}
 }
 \author{
 Jaehoon Seol (Original C code), Google's Gemini (R translation)

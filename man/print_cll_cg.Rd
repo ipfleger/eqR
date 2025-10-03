@@ -28,6 +28,7 @@ summary to the console. It is an R equivalent of the C library's `Print_CC`
 function.
 }
 \examples{
+\dontrun{
 # This is a conceptual example of how you would use it.
 # Assume 'pdata_list' and 'results_df' are returned from your main wrapper.
 
@@ -36,4 +37,5 @@ function.
 #   pdata = pdata_list,
 #   conversion_table = results_df
 # )
+}
 }

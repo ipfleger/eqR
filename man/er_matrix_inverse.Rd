@@ -21,10 +21,12 @@ This function is a wrapper for R's built-in `solve()` function. When
 `solve()` is called with a single matrix argument, it computes the inverse.
 }
 \examples{
+\dontrun{
 M <- matrix(c(1, 2, 3, 4), nrow = 2)
 M_inv <- er_matrix_inverse(M)
 print(M_inv)
 print(M \%*\% M_inv) # Should be the identity matrix
+}
 }
 \seealso{
 \code{\link{solve}}

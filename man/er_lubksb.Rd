@@ -4,7 +4,7 @@
 \alias{er_lubksb}
 \title{Solve a System of Linear Equations using LU Decomposition}
 \usage{
-er_lubksb(a, b)
+er_lubksb(a, b, force_mass = FALSE)
 }
 \arguments{
 \item{a}{A square numeric matrix (the coefficient matrix).}
@@ -26,12 +26,15 @@ internally to solve the system. The C version `er_lubksb` performs
 forward and backward substitution on an already-decomposed matrix.
 }
 \examples{
+\dontrun{
 A <- matrix(c(2, 1, -1, -3, -1, 2, -2, 1, 2), nrow = 3, byrow = TRUE)
 B <- c(8, -11, -3)
 # In C, you would call ludcmp then lubksb. In R, we can combine them.
 X <- er_lubksb(A, B)
 print(X)
 #> [1]  2  3 -1
+}
+
 }
 \seealso{
 \code{\link{er_ludcmp}}, \code{\link{solve}}

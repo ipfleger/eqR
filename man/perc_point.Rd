@@ -36,6 +36,7 @@ are consistent with the original C library. The function is vectorized and
 can compute scores for multiple percentile ranks at once.
 }
 \examples{
+\dontrun{
 # Setup a sample distribution
 freqs <- c(1, 2, 5, 8, 10, 15, 12, 8, 5, 3, 1)
 rel_freqs <- freqs / sum(freqs)
@@ -46,6 +47,7 @@ perc_point(pr = 50, ns = 11, min = 0, inc = 1, crfd = cum_rel_freqs)
 
 # Find scores for multiple percentile ranks
 perc_point(pr = c(25, 50, 75), ns = 11, min = 0, inc = 1, crfd = cum_rel_freqs)
+}
 }
 \seealso{
 \code{\link{perc_rank}}

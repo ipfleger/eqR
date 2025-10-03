@@ -1,29 +1,94 @@
 # Single Group
-bl <- readr::read_rds("data/bl_service_now.rds")
+pse <- readRDS("~/statwise ecosystem 2.0/lyzer/data/pse_google.rds")
 
+forms <- formr:::build(is = bl@is |> dplyr::mutate(decision = "Use"),
+                       f = 3,
+                       ipo = bl@ipo[,c("obj", "per")] |> dplyr::mutate(per = round(per/2.86)),
+                       okol = data.frame(forms = c("form1,form2"), ol = .2))
+
+bl <- formr:::pse2bl(pse)
+bl@forms <- forms |> dplyr::rename(`Form A` = form1,
+                            `Form B` = form2,
+                            `Form C` = form3)
+
+devtools::load_all(".")
 ctabs_a <- formr::crosstabs(bl@pse |> dplyr::filter(item %in% bl@forms$`Form A`), which = "s", id_cols = c("id"))
 ctabs_b <- formr::crosstabs(bl@pse |> dplyr::filter(item %in% bl@forms$`Form B`), which = "s", id_cols = c("id"))
 ctabs_c <- formr::crosstabs(bl@pse |> dplyr::filter(item %in% bl@forms$`Form C`), which = "s", id_cols = c("id"))
 
 eq <- init_equating() |>
-  add_form(ctabs_a, name = "Form A", id_cols = 'id', min_score = 0, max_score = 70) |>
-  add_form(ctabs_b, name = "Form B", id_cols = 'id', min_score = 0, max_score = 70) |>
-  add_form(ctabs_c, name = "Form C", id_cols = 'id', min_score = 0, max_score = 70) |>
+  add_form(ctabs_a, name = "Form A", id_cols = 'id', min_score = 0, max_score = 39) |>
+  add_form(ctabs_b, name = "Form B", id_cols = 'id', min_score = 0, max_score = 39) |>
+  add_form(ctabs_c, name = "Form C", id_cols = 'id', min_score = 0, max_score = 39) |>
   add_plan(`Form A` ~ `Form C` + `Form B`)
-# Single Group Design -----------------------------------
 
- single <- eq |>
-  add_design("single") |> # Add the design
-  # add_method(
-  #   method = "linear", mean_only = TRUE # Mean equating
-  # ) |>
-  # add_method(
-  #   method = "linear" # linear equating
-  # )  |>
-  # add_method(
-  #   method = "equipercentile" # equipercentile equating no smoothing
-  # ) |>
-  run_equating(boot_replications = 1000, boot_type = "bca") # bootstrap options are from boot::boot
+
+# Single Group Design -----------------------------------
+# Mean equating
+single_mean <- eq |>
+  add_design("SG") |> # Add the design
+  add_method(
+    method = "linear", mean_only = TRUE # Mean equating
+  ) |>
+  run_equating(boot_replications = 1000, boot_type = "norm")
+# Linear equating
+single_linear <- eq |>
+  add_design("SG") |> # Add the design
+  add_method(
+    method = "linear",
+  ) |>
+  run_equating(boot_replications = 1000, boot_type = "basic")
+# Equipercentile equating
+single_equipercentile <- eq |>
+  add_design("SG") |>
+  add_method(
+    method = "equipercentile" # equipercentile equating no smoothing
+  ) |>
+  run_equating(boot_replications = 1000) # bootstrap options are from boot::boot
+
+single_equip_loglinear <- eq |>
+  add_design("SG") |>
+  add_method(
+    method = "equipercentile", smooth = "log_linear" # equipercentile equating no smoothing
+  ) |>
+  run_equating(boot_replications = 1000)
+
+single_equip_continuized_loglinear <- eq |>
+  add_design("SG") |>
+  add_method(
+    method = "equipercentile", smooth = "continuized_log_linear" # equipercentile equating no smoothing
+  ) |>
+  run_equating(boot_replications = 1)  # Don't run this with 1000 boot_replications. It will run until you die. Really any replications will make it take a long time.
+
+
+plot_equivalent(results = single_equip_continuized_loglinear$`Form C;Form A`$`S E I Z`$`Equipercentile`)
+# Missing confidence intervals don't plot well.
+
+
+# A test:
+dat <- data.frame(do.call(cbind, lapply(forms, \(frm) rowSums(eq@data[[frm]], na.rm = TRUE))))
+names(dat) <- c("x", "y")
+data = dat; i = 1:nrow(dat)
+n = equate_none_stat_fun(data, i, score_params, method_options) # is this mfe or fe or bh?
+b = equate_bb_stat_fun(data, i, score_params, method_options)
+l = equate_loglinear_stat_fun(data, i, score_params, method_options)
+# s = equate_spline_stat_fun(data, i, score_params, method_options) # doesn't run
+k = equate_kernel_stat_fun(data, i, score_params, method_options) # doesn't seem to be working correctly.
+z = equate_cll_sg_stat_fun(data, i, score_params, method_options) # Possibly needs our adjustment
+data.frame(x = 0:70, n = n, b = b, l = l, #s = s,
+           k = k, z = z) |>
+  tidyr::pivot_longer(-x) |>
+  ggplot2::ggplot(ggplot2::aes(x = x, y = value, color = name)) +
+  ggplot2::geom_line()
+
+# Random Group Design -----------------------------------
+# equpercentile equating with smoothing
+single_equip_bb <- eq |> add_design("RG") |>
+  add_method(
+    method = "equipercentile", smooth = "beta_binomial"
+  ) |>
+  run_equating(boot_replications = 1000)
+
 
 
 single$`Form C;Form A`$`S L mean N mean_only`$Mean

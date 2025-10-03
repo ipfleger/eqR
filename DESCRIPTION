@@ -15,3 +15,8 @@ Config/testthat/edition: 3
 URL: https://github.com/ipfleger/eqR
 BugReports: https://github.com/ipfleger/eqR/issues
 Logo: man/figures/logo.png
+LinkingTo: 
+    Rcpp
+Imports: 
+    Rcpp,
+    S7

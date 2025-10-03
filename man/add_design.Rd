@@ -4,7 +4,7 @@
 \alias{add_design}
 \title{Add a study design to an equate recipe}
 \usage{
-add_design(equate_recipe, design)
+add_design(equate_recipe, design, counter_balance_by = NULL)
 }
 \arguments{
 \item{equate_recipe}{An object of class `equate_recipe`.}
@@ -12,6 +12,8 @@ add_design(equate_recipe, design)
 \item{design}{A character string describing the study design. Accepts common
 names and abbreviations for single-group ("S"), random-groups ("R"), or
 common-item/nonequivalent groups ("CG") designs.}
+
+\item{counter_balance_by}{Character vector of length 1. The name of the id_col to use in single group equating.}
 }
 \value{
 The updated `equate_recipe` object with the normalized `@design` field.
@@ -21,7 +23,9 @@ Adds a normalized design code ("S", "R", or "CG") to an `equate_recipe` object
 based on a user-friendly description of the equating design.
 }
 \examples{
+\dontrun{
 equate_recipe |> add_design("single")
 equate_recipe |> add_design("random-groups")
 equate_recipe |> add_design("common-item nonequivalent")
+}
 }

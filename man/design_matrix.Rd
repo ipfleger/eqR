@@ -18,22 +18,11 @@ design_matrix(
   scale = FALSE
 )
 }
-\arguments{
-\item{nsu, }{nsv Number of score categories for variables u and v.}
-
-\item{minu, }{minv, incu, incv Score range and increment for u and v.}
-
-\item{cu, }{cv, cuv Degrees for polynomials and cross-products.}
-
-\item{cpm}{A matrix specifying the cross-product terms.}
-
-\item{scale}{Logical, if TRUE, scale the design matrix columns.}
-}
 \value{
-A list containing the raw design matrix (`B_raw`) and the
-  potentially scaled design matrix (`B`).
+A list containing the raw design matrix (`B_raw`), the scaled design
+  matrix (`B`), and the scaling attributes (`B_center`, `B_scale`).
 }
 \description{
-Creates a design matrix based on powers of scores for univariate or
-bivariate log-linear models.
+Creates a design matrix and returns the scaling attributes (center and scale)
+used during its creation, which are necessary for unscaling the results.
 }

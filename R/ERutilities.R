@@ -24,10 +24,12 @@
 #' @author R. L. Brennan (Original C code), Google's Gemini (R translation)
 #'
 #' @examples
+#' \dontrun{
 #' # Find the location of the score 16 in a sequence from 10 to 20 by 2.
 #' score_location <- loc(x = 16, min = 10, inc = 2)
 #' print(score_location)
 #' #> [1] 3
+#' }
 loc <- function(x, min, inc) {
   # The C code uses `(int) (val + 0.5)` for rounding.
   # R's `round()` function achieves the same result for positive numbers.
@@ -61,11 +63,13 @@ loc <- function(x, min, inc) {
 #' @seealso \code{\link{loc}}
 #'
 #' @examples
+#' \dontrun{
 #' # For a sequence of scores from 10 to 20 with an increment of 2,
 #' # the scores are 10, 12, 14, 16, 18, 20. There are 6 scores in total.
 #' number_of_scores <- nscores(max = 20, min = 10, inc = 2)
 #' print(number_of_scores)
 #' #> [1] 6
+#' }
 nscores <- function(max, min, inc) {
   # This function calls loc() to get the zero-based index of the max score
   # and adds 1 to get the total number of scores. The 'L' ensures the result
@@ -95,11 +99,13 @@ nscores <- function(max, min, inc) {
 #' @seealso \code{\link{loc}}
 #'
 #' @examples
+#' \dontrun{
 #' # Find the score at the 3rd index (4th position) in a sequence
 #' # starting at 10 with an increment of 2.
 #' the_score <- score(loc = 3, min = 10, inc = 2)
 #' print(the_score)
 #' #> [1] 16
+#' }
 score <- function(loc, min, inc) {
   # This is a direct translation of the C formula.
   return(min + loc * inc)
@@ -136,6 +142,7 @@ score <- function(loc, min, inc) {
 #' @author R. L. Brennan (Original C code), Google's Gemini (R translation)
 #'
 #' @examples
+#' \dontrun{
 #' scores <- seq(0, 10)
 #' freqs <- c(1, 2, 5, 8, 10, 15, 12, 8, 5, 3, 1)
 #' rel_freqs <- freqs / sum(freqs)
@@ -146,6 +153,7 @@ score <- function(loc, min, inc) {
 #'
 #' # Calculate for multiple scores
 #' perc_rank(x = c(2, 5.5, 9), min = 0, max = 10, inc = 1, crfd = cum_rel_freqs)
+#' }
 perc_rank <- function(x, min, max, inc, crfd) {
   # Define the score points and their corresponding boundaries for interpolation
   score_points <- seq(from = min, to = max, by = inc)
@@ -195,6 +203,7 @@ perc_rank <- function(x, min, max, inc, crfd) {
 #' @seealso \code{\link{perc_rank}}
 #'
 #' @examples
+#' \dontrun{
 #' # Setup a sample distribution
 #' freqs <- c(1, 2, 5, 8, 10, 15, 12, 8, 5, 3, 1)
 #' rel_freqs <- freqs / sum(freqs)
@@ -205,6 +214,7 @@ perc_rank <- function(x, min, max, inc, crfd) {
 #'
 #' # Find scores for multiple percentile ranks
 #' perc_point(pr = c(25, 50, 75), ns = 11, min = 0, inc = 1, crfd = cum_rel_freqs)
+#' }
 perc_point <- function(pr, ns, min, inc, crfd) {
 
   # Vectorized implementation
@@ -270,37 +280,11 @@ perc_point <- function(pr, ns, min, inc, crfd) {
 #' @author Jaehoon Seol (Original C code), Google's Gemini (R translation)
 #'
 #' @examples
+#' \dontrun{
 #' v1 <- c(1, 2, 3)
 #' v2 <- c(4, 5, 6)
 #' er_dot(v1, v2) # Expected: 1*4 + 2*5 + 3*6 = 32
-er_dot <- function(vect1, vect2) {
-  # crossprod() is generally the most efficient way to compute a dot product
-  # in R. The result is a 1x1 matrix, so we use as.numeric() to extract the value.
-  return(as.numeric(crossprod(vect1, vect2)))
-}
-
-#' Compute the Dot Product of Two Vectors
-#'
-#' @description
-#' Computes the dot product of two numeric vectors. This is a wrapper around
-#' R's highly efficient `crossprod()` function to maintain naming consistency
-#' with the original C library (`er_dot`).
-#'
-#' @details
-#' The original C function included an `offset` parameter to handle 0-based or
-#' 1-based indexing. This is not needed in R, as vector operations are
-#' inherently 1-based and vectorized.
-#'
-#' @param vect1 A numeric vector.
-#' @param vect2 A numeric vector of the same length as `vect1`.
-#'
-#' @return A single numeric value representing the dot product of the two vectors.
-#' @author Jaehoon Seol (Original C code), Google's Gemini (R translation)
-#'
-#' @examples
-#' v1 <- c(1, 2, 3)
-#' v2 <- c(4, 5, 6)
-#' er_dot(v1, v2) # Expected: 1*4 + 2*5 + 3*6 = 32
+#' }
 er_dot <- function(vect1, vect2) {
   # crossprod() is generally the most efficient way to compute a dot product
   # in R. The result is a 1x1 matrix, so we use as.numeric() to extract the value.
@@ -329,10 +313,12 @@ er_dot <- function(vect1, vect2) {
 #' @author Jaehoon Seol (Original C code), Google's Gemini (R translation)
 #'
 #' @examples
+#' \dontrun{
 #' y <- c(10, 20, 30)
 #' x <- c(1, 2, 3)
 #' a <- 2
 #' er_daxpy(y, a, x) # Expected: 2*c(1,2,3) + c(10,20,30) = c(12, 24, 36)
+#' }
 er_daxpy <- function(vectY, alpha, vectX) {
   # R's vectorized arithmetic is the most direct and efficient way to do this.
   return(alpha * vectX + vectY)
@@ -357,9 +343,11 @@ er_daxpy <- function(vectY, alpha, vectX) {
 #' @author Jaehoon Seol (Original C code), Google's Gemini (R translation)
 #'
 #' @examples
+#' \dontrun{
 #' v <- c(10, 20, 30)
 #' s <- 0.5
 #' er_scale(v, s) # Expected: c(5, 10, 15)
+#' }
 er_scale <- function(vect, scale) {
   # R's vectorized arithmetic is the natural way to perform this operation.
   return(vect * scale)
@@ -389,11 +377,13 @@ er_scale <- function(vect, scale) {
 #' @author Jaehoon Seol (Original C code), Google's Gemini (R translation)
 #'
 #' @examples
+#' \dontrun{
 #' H <- diag(3) # Initial matrix (identity)
 #' v <- c(1, 2, 3)
 #' s <- 0.1
 #' H_new <- er_r1update(H, s, v)
 #' print(H_new)
+#' }
 er_r1update <- function(matx, scale, vect) {
   # tcrossprod(vect) is an efficient way to compute the outer product v %*% t(v)
   outer_product <- tcrossprod(vect)
@@ -421,9 +411,11 @@ er_r1update <- function(matx, scale, vect) {
 #' @author Jaehoon Seol (Original C code), Google's Gemini (R translation)
 #'
 #' @examples
+#' \dontrun{
 #' M <- matrix(1:6, nrow = 2, ncol = 3)
 #' V <- c(1, 2, 3)
 #' er_mvmult(M, V) # Expected: c(14, 32)
+#' }
 er_mvmult <- function(matx, vect1) {
   # The %*% operator is R's standard for matrix multiplication.
   # The result is a matrix with one column, so we use as.vector to convert.
@@ -462,9 +454,11 @@ er_mvmult <- function(matx, vect1) {
 #' @author R. L. Brennan (Original C code), Google's Gemini (R translation)
 #'
 #' @examples
+#' \dontrun{
 #' freqs <- c(1, 2, 5, 8, 10, 15, 12, 8, 5, 3, 1)
 #' score_vals <- 0:10
 #' get_moments(scores = score_vals, freq = freqs)
+#' }
 get_moments <- function(scores = NULL, freq = NULL, rel_freq = NULL, min = NULL, max = NULL, inc = NULL) {
 
   if (is.null(scores)) {
@@ -532,6 +526,7 @@ get_moments <- function(scores = NULL, freq = NULL, rel_freq = NULL, min = NULL,
 #' @seealso \code{\link{perc_point}}, \code{\link{perc_rank}}
 #'
 #' @examples
+#' \dontrun{
 #' # Example data from Kolen & Brennan (2004), Table 2.4
 #' # Form X distribution
 #' freqs_x <- c(1, 2, 5, 8, 10, 15, 12, 8, 5, 3, 1)
@@ -550,6 +545,8 @@ get_moments <- function(scores = NULL, freq = NULL, rel_freq = NULL, min = NULL,
 #' equated_scores <- EquiEquate(nsy = ns_y, miny = min_y, incy = inc_y,
 #'                              crfdy = crfd_y, nsx = ns_x, prdx = prd_x)
 #' print(data.frame(x_score = 0:10, equated_y = equated_scores))
+#' }
+#' @export
 EquiEquate <- function(nsy, miny, incy, crfdy, nsx, prdx, eraw) {
   # This is a direct application of perc_point for each percentile rank in prdx
   eraw <- perc_point(pr = prdx, ns = nsy, min = miny, inc = incy, crfd = crfdy)
@@ -608,13 +605,16 @@ er_ludcmp <- function(a) {
 #' @seealso \code{\link{er_ludcmp}}, \code{\link{solve}}
 #'
 #' @examples
+#' \dontrun{
 #' A <- matrix(c(2, 1, -1, -3, -1, 2, -2, 1, 2), nrow = 3, byrow = TRUE)
 #' B <- c(8, -11, -3)
 #' # In C, you would call ludcmp then lubksb. In R, we can combine them.
 #' X <- er_lubksb(A, B)
 #' print(X)
 #' #> [1]  2  3 -1
-er_lubksb <- function(a, b) {
+#' }
+#'
+er_lubksb <- function(a, b, force_mass = FALSE) {
   is_square <- is.matrix(a) && nrow(a) == ncol(a)
   full_rank <- qr(a)$rank == ncol(a)
 
@@ -641,10 +641,12 @@ er_lubksb <- function(a, b) {
 #' @seealso \code{\link{solve}}
 #'
 #' @examples
+#' \dontrun{
 #' M <- matrix(c(1, 2, 3, 4), nrow = 2)
 #' M_inv <- er_matrix_inverse(M)
 #' print(M_inv)
 #' print(M %*% M_inv) # Should be the identity matrix
+#' }
 er_matrix_inverse <- function(a) {
   # solve(a) computes the inverse of matrix a
   return(solve(a))
@@ -755,4 +757,3 @@ er_rtsafe <- function(f, interval) {
 er_dfpmin <- function(par, fn, gr = NULL, ...) {
   optim(par = par, fn = fn, gr = gr, method = "BFGS", ...)
 }
-

@@ -54,10 +54,12 @@ The `%||%` operator is used to provide a default value if an argument is `NULL`,
 allowing for easy overriding of calculated parameters.
 }
 \examples{
+\dontrun{
 # Create a sample item data frame
 sample_ctabs <- data.frame(
   item1 = c(0, 1, 1, 0),
   item2 = c(0, 0, 1, 1),
   item3 = c(0, 1, 0, 1)
 )
+}
 }

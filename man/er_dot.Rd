@@ -5,8 +5,6 @@
 \title{Compute the Dot Product of Two Vectors}
 \usage{
 er_dot(vect1, vect2)
-
-er_dot(vect1, vect2)
 }
 \arguments{
 \item{vect1}{A numeric vector.}
@@ -15,14 +13,8 @@ er_dot(vect1, vect2)
 }
 \value{
 A single numeric value representing the dot product of the two vectors.
-
-A single numeric value representing the dot product of the two vectors.
 }
 \description{
-Computes the dot product of two numeric vectors. This is a wrapper around
-R's highly efficient `crossprod()` function to maintain naming consistency
-with the original C library (`er_dot`).
-
 Computes the dot product of two numeric vectors. This is a wrapper around
 R's highly efficient `crossprod()` function to maintain naming consistency
 with the original C library (`er_dot`).
@@ -31,18 +23,13 @@ with the original C library (`er_dot`).
 The original C function included an `offset` parameter to handle 0-based or
 1-based indexing. This is not needed in R, as vector operations are
 inherently 1-based and vectorized.
-
-The original C function included an `offset` parameter to handle 0-based or
-1-based indexing. This is not needed in R, as vector operations are
-inherently 1-based and vectorized.
 }
 \examples{
+\dontrun{
 v1 <- c(1, 2, 3)
 v2 <- c(4, 5, 6)
 er_dot(v1, v2) # Expected: 1*4 + 2*5 + 3*6 = 32
-v1 <- c(1, 2, 3)
-v2 <- c(4, 5, 6)
-er_dot(v1, v2) # Expected: 1*4 + 2*5 + 3*6 = 32
+}
 }
 \author{
 Jaehoon Seol (Original C code), Google's Gemini (R translation)

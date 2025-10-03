@@ -11,46 +11,113 @@ equipercentile <- function(forms, design, eq, title, boot_type = "perc", boot_re
   }
 }
 
-# Helper to create a frequency distribution on the full score range
-get_freq_dist <- function(scores, score_range) {
-  # Ensure all levels from min to max score are included
-  score_factor <- factor(scores, levels = score_range)
-  as.vector(table(score_factor))
+# --- Helper Functions for SG/RG Equipercentile Equating ---
+
+#' @noRd
+get_freq_dist <- function(scores, score_levels) {
+  factor(scores, levels = score_levels) |> table() |> as.vector()
 }
 
-# 3. Core Equating Logic (to be used in bootstrap)
-equate_stat_fun <- function(data, i) {
+#' @noRd
+equate_none_stat_fun <- function(data, i, score_ps, ...) {
   sample_data <- data[i, ]
-  freq_x <- get_freq_dist(sample_data$x, attr(eq@data[[forms[1]]], "range"))
-  freq_y <- get_freq_dist(sample_data$y, attr(eq@data[[forms[2]]], "range"))
+  freq_x <- get_freq_dist(sample_data$x, score_ps$range_x)
+  freq_y <- get_freq_dist(sample_data$y, score_ps$range_y)
 
-  # --- Apply Smoothing ---
-  # This is a simplified example; a full implementation would pass more options
-  # and handle different smoothers more robustly.
-  switch(smooth_code,
-         "N" = {
-           crfd_x <- cumsum(freq_x / sum(freq_x))
-           crfd_y <- cumsum(freq_y / sum(freq_y))
-         },
-         "B" = {
-           # Placeholder for Beta-Binomial; requires n_items, moments, etc.
-           # For now, falls back to no smoothing
-           crfd_x <- cumsum(freq_x / sum(freq_x))
-           crfd_y <- cumsum(freq_y / sum(freq_y))
-         },
-         # Add other cases for L, S, K, Z here
-         { # Default case (no smoothing)
-           crfd_x <- cumsum(freq_x / sum(freq_x))
-           crfd_y <- cumsum(freq_y / sum(freq_y))
-         }
-  )
+  crfd_x <- cumsum(freq_x / sum(freq_x))
+  crfd_y <- cumsum(freq_y / sum(freq_y))
 
-  # --- Perform Equating ---
-  prdx <- perc_rank(x = attr(eq@data[[forms[1]]], "range"),#get_freq_dist(sample_data$x, attr(eq@data[[forms[1]]], "range")),
-                    min = attr(eq@data[[forms[1]]],"min"), max = attr(eq@data[[forms[1]]],"max"), inc = attr(eq@data[[forms[1]]],"inc"), crfd = crfd_x)
-  eraw <- EquiEquate(nsy = length(attr(eq@data[[forms[2]]], "range")), miny =  attr(eq@data[[forms[2]]],"min"), incy = attr(eq@data[[forms[2]]],"inc"), crfdy = crfd_y, nsx = length(attr(eq@data[[forms[1]]], "range")), prdx = prdx)
-  return(eraw)
+  prdx <- perc_rank(x = score_ps$range_x, min = score_ps$min_x, max = score_ps$max_x, inc = score_ps$inc_x, crfd = crfd_x)
+  EquiEquate(nsy = length(score_ps$range_y), miny = score_ps$min_y, incy = score_ps$inc_y, crfdy = crfd_y, nsx = length(score_ps$range_x), prdx = prdx)
 }
+
+#' @noRd
+equate_bb_stat_fun <- function(data, i, score_ps, method_opts) {
+  sample_data <- data[i, ]
+  freq_x <- get_freq_dist(sample_data$x, score_ps$range_x)
+  freq_y <- get_freq_dist(sample_data$y, score_ps$range_y)
+
+  # Smooth X
+  smooth_x <- tryCatch(smooth_bb(n_persons = sum(freq_x), n_items = score_ps$k_x, freq = freq_x, rmoment = get_moments(scores=score_ps$range_x, freq=freq_x), nparm = method_opts$nparm, rel = score_ps$rel_x), error = function(e) NULL)
+  crfd_x <- if (!is.null(smooth_x)) smooth_x$crfd else cumsum(freq_x / sum(freq_x))
+
+  # Smooth Y
+  smooth_y <- tryCatch(smooth_bb(n_persons = sum(freq_y), n_items = score_ps$k_y, freq = freq_y, rmoment = get_moments(scores=score_ps$range_y, freq=freq_y), nparm = method_opts$nparm, rel = score_ps$rel_y), error = function(e) NULL)
+  crfd_y <- if (!is.null(smooth_y)) smooth_y$crfd else cumsum(freq_y / sum(freq_y))
+
+  prdx <- perc_rank(x = score_ps$range_x, min = score_ps$min_x, max = score_ps$max_x, inc = score_ps$inc_x, crfd = crfd_x)
+  EquiEquate(nsy = length(score_ps$range_y), miny = score_ps$min_y, incy = score_ps$inc_y, crfdy = crfd_y, nsx = length(score_ps$range_x), prdx = prdx)
+}
+
+#' @noRd
+equate_loglinear_stat_fun <- function(data, i, score_ps, method_opts) {
+  sample_data <- data[i, ]
+  freq_x <- get_freq_dist(sample_data$x, score_ps$range_x)
+  freq_y <- get_freq_dist(sample_data$y, score_ps$range_y)
+
+  # Smooth X
+  smooth_x <- tryCatch(smooth_ull(n = sum(freq_x), ns = length(freq_x), min = score_ps$min_x, inc = score_ps$inc_x, fd = freq_x, c = method_opts$degree), error = function(e) NULL)
+  crfd_x <- if (!is.null(smooth_x) && smooth_x$converged) smooth_x$crfd else cumsum(freq_x / sum(freq_x))
+
+  # Smooth Y
+  smooth_y <- tryCatch(smooth_ull(n = sum(freq_y), ns = length(freq_y), min = score_ps$min_y, inc = score_ps$inc_y, fd = freq_y, c = method_opts$degree), error = function(e) NULL)
+  crfd_y <- if (!is.null(smooth_y) && smooth_y$converged) smooth_y$crfd else cumsum(freq_y / sum(freq_y))
+
+  prdx <- perc_rank(x = score_ps$range_x, min = score_ps$min_x, max = score_ps$max_x, inc = score_ps$inc_x, crfd = crfd_x)
+  EquiEquate(nsy = length(score_ps$range_y), miny = score_ps$min_y, incy = score_ps$inc_y, crfdy = crfd_y, nsx = length(score_ps$range_x), prdx = prdx)
+}
+
+#' @noRd
+equate_spline_stat_fun <- function(data, i, score_ps, method_opts) {
+  eraw <- equate_none_stat_fun(data, i, score_ps)
+  prdx_unsmoothed <- perc_rank(x = score_ps$range_x, min = score_ps$min_x, max = score_ps$max_x, inc = score_ps$inc_x, crfd = cumsum(get_freq_dist(data[i, ]$x, score_ps$range_x)/sum(i)))
+  xlow <- which.min(abs(prdx_unsmoothed - method_opts$prlow))
+  xhigh <- which.min(abs(prdx_unsmoothed - method_opts$prhigh))
+
+  post_smooth(xvalues = score_ps$range_x, yvalues = eraw, dyi = rep(1, length(eraw)),
+              s = method_opts$s, xlow = xlow, xhigh = xhigh,
+              ky = score_ps$max_y, vectX = score_ps$range_x)$vectY
+}
+
+#' @noRd
+equate_kernel_stat_fun <- function(data, i, score_ps, method_opts) {
+  sample_data <- data[i, ]
+  rel_freq_x <- get_freq_dist(sample_data$x, score_ps$range_x) / nrow(sample_data)
+  rel_freq_y <- get_freq_dist(sample_data$y, score_ps$range_y) / nrow(sample_data)
+  hx <- sd(sample_data$x) * (4 / (3 * nrow(sample_data)))^(1/5)
+  hy <- sd(sample_data$y) * (4 / (3 * nrow(sample_data)))^(1/5)
+  pr_x <- kernel_continu_cdf(score_ps$range_x, scores = score_ps$range_x, rel_freq = rel_freq_x, hx = hx)
+  sapply(pr_x, function(p) kernel_inverse_cdf(p, scores = score_ps$range_y, rel_freq = rel_freq_y, hx = hy))
+}
+
+#' @noRd
+equate_cll_sg_stat_fun <- function(data, i, score_ps = score_params, method_opts, cb = NULL) {
+  sample_data <- data[i, ]
+  bdf <- table(factor(sample_data$x, levels = score_ps$range_x), factor(sample_data$y, levels = score_ps$range_y))
+  bivar_smoothed <- smooth_bll(n = nrow(sample_data),
+                               nsu = length(score_ps$range_x), minu = score_ps$min_x, incu = score_ps$inc_x,
+                               nsv = length(score_ps$range_y), minv = score_ps$min_y, incv = score_ps$inc_y,
+                               nct = as.vector(t(bdf)), scale = FALSE,
+                               cu = method_opts$cu, cv = method_opts$cv, cuv = method_opts$cuv, cpm = method_opts$cpm)
+  if (is.null(bivar_smoothed) || !bivar_smoothed$converged) stop("Bivariate log-linear smoothing failed to converge.")
+  equate_cll(design = `if`(is.null(cb), "SG", "CB"), bivar = bivar_smoothed)
+}
+
+#' Master Dispatcher for SG/RG Equipercentile Statistic Functions
+#' @noRd
+equate_sgrg_statistic <- function(data, i, method_options, score_params, smooth_code, cb) {
+  # This wrapper function selects the correct statistical engine based on the smoothing code.
+  # It is designed to be passed as the `statistic` to boot::boot.
+  switch(smooth_code,
+         "N" = equate_none_stat_fun(data, i, score_params, method_options),
+         "B" = equate_bb_stat_fun(data, i, score_params, method_options),
+         "L" = equate_loglinear_stat_fun(data, i, score_params, method_options),
+         "S" = equate_spline_stat_fun(data, i, score_params, method_options), # error
+         "K" = equate_kernel_stat_fun(data, i, score_params, method_options),
+         "Z" = equate_cll_sg_stat_fun(data, i, score_params, method_options, cb = cb) # Fails to converge, doesn't have nct_b. I think we can fix this with our previous code.
+  )
+}
+
 
 equipercentile_sgrg <- function(eq, forms, title, boot_type = "perc", boot_replications = 1000) {
 
@@ -60,26 +127,37 @@ equipercentile_sgrg <- function(eq, forms, title, boot_type = "perc", boot_repli
   method_name <- paste("Equipercentile", switch(smooth_code, N = "(No Smoothing)", B = "(Beta-Binomial)", L = "(Log-Linear)", S = "(Cubic Spline)", K = "(Kernel)", Z = "(CLL)"))
 
   # 2. Data and Score Scale Preparation
-  dat <- data.frame(do.call(cbind, lapply(forms |> `names<-`(forms), \(frm){
-    rowSums(eq@data[[frm]][eq@forms[[frm]]], na.rm = TRUE)
-  })))
+  dat <- data.frame(do.call(cbind, lapply(forms, \(frm) rowSums(eq@data[[frm]], na.rm = TRUE))))
   names(dat) <- c("x", "y")
 
+  score_params <- list(
+    min_x = attr(eq@data[[forms[1]]], "min"), max_x = attr(eq@data[[forms[1]]], "max"), inc_x = attr(eq@data[[forms[1]]], "inc"), range_x = attr(eq@data[[forms[1]]], "range"), k_x = attr(eq@data[[forms[1]]], "k"), n_x = attr(eq@data[[forms[1]]], "n"), rel_x = attr(eq@data[[forms[1]]], "rel"),
+    min_y = attr(eq@data[[forms[2]]], "min"), max_y = attr(eq@data[[forms[2]]], "max"), inc_y = attr(eq@data[[forms[2]]], "inc"), range_y = attr(eq@data[[forms[2]]], "range"), k_y = attr(eq@data[[forms[2]]], "k"), n_y = attr(eq@data[[forms[2]]], "n"), rel_y = attr(eq@data[[forms[2]]], "rel")
+  )
 
-  # 4. Bootstrapping and Result Formatting
+  # 3. Bootstrapping and Result Formatting
   if (boot_replications <= 1) {
-    equivalent_score <- equate_stat_fun(dat, 1:nrow(dat))
+    equivalents <- equate_sgrg_statistic(data = dat,
+                                         i = 1:nrow(dat),
+                                         method_options = method_options,
+                                         score_params = score_params, smooth_code,
+                                         cb = `if`(is.null(attr(eq@design, "counter_balance_by")),
+                                                   NULL,
+                                                   eq@data_ids[[forms[1]]][[attr(eq@design, "counter_balance_by")]]))
     results <- list(list(
-      parameters = NULL, # No parameters for equipercentile
-      x_score = attr(eq@data[[forms[1]]], "range"),
-      equivalent_score = equivalent_score,
-      bootstrapped_estimate = NA,
+      parameters = NULL, x_score = score_params$range_x, equivalent_score = equivalents, bootstrapped_estimate = NA,
       nested_intervals = data.frame(se = NA, lower_bound_50 = NA, upper_bound_50 = NA, lower_bound_95 = NA, upper_bound_95 = NA),
       observed_scores_x = dat$x, observed_scores_y = dat$y
     )) |> `names<-`(method_name)
   } else {
-    equi_boot <- boot::boot(data = dat, statistic = equate_stat_fun, R = boot_replications)
-
+    equi_boot <- boot::boot(data = dat, R = boot_replications,
+                            statistic = equate_sgrg_statistic,
+                            method_options = method_options,
+                            score_params = score_params,
+                            smooth_code = smooth_code,
+                            cb = `if`(is.null(attr(eq@design, "counter_balance_by")),
+                                      NULL,
+                                      eq@data_ids[[forms[1]]][[attr(eq@design, "counter_balance_by")]]))
     boots <- lapply(1:ncol(equi_boot$t), \(i) `if`(length(unique(equi_boot$t[,i])) == 1,
                                                    list(cbind(c(NA,NA), c(NA,NA))) |> `names<-`(sapply(boot_type, switch, "perc" = "percent")),
                                                    tryCatch({
@@ -93,11 +171,11 @@ equipercentile_sgrg <- function(eq, forms, title, boot_type = "perc", boot_repli
                                                      boot::boot.ci(equi_boot, index = i, type = "perc", conf = c(0.5, 0.95)) |> `attr<-`('boot_type', 'perc')
                                                    }
                                                    )
-                                                   )
-                    )
+    )
+    )
 
     cis <- do.call(rbind, lapply(boots, \(x) {
-      ci_type <- sapply(attr(x, 'boot_type'), switch, , "perc" = "percent", "norm" = "normal", "basic" = "basic", "bca" = "bca")
+      ci_type <- sapply(attr(x, 'boot_type'), switch, "perc" = "percent", "norm" = "normal", "basic" = "basic", "bca" = "bca")
       x_mat <- x[[ci_type]]
       c(x_mat[1,(ncol(x_mat) - 1):ncol(x_mat)], x_mat[2,(ncol(x_mat) - 1):ncol(x_mat)])
     })) |> `colnames<-`(c("lower_bound_50", "upper_bound_50", "lower_bound_95", "upper_bound_95"))
@@ -117,6 +195,7 @@ equipercentile_sgrg <- function(eq, forms, title, boot_type = "perc", boot_repli
 
   return(results)
 }
+
 
 #' Prepare Data for Common-Item Equipercentile Equating
 #'
@@ -169,10 +248,11 @@ prepare_cg_data <- function(eq, forms, anchors) {
   bdf_xv <- table(factor(scores_x, levels = x_range), factor(scores_v1, levels = v_range))
   bdf_yv <- table(factor(scores_y, levels = y_range), factor(scores_v2, levels = v_range))
 
+  rel <- kr20(rbind(data_x[, anchors, drop = FALSE], data_y[, anchors, drop = FALSE]))
   # Assemble the list of score parameters
   score_params <- list(
-    minx = min_x, maxx = max_x, incx = 1, nsx = length(x_range), rxv = cor(scores_x,scores_v1, use = "p"),
-    miny = min_y, maxy = max_y, incy = 1, nsy = length(y_range), ryv = cor(scores_y,scores_v2, use = "p"),
+    minx = min_x, maxx = max_x, incx = 1, nsx = length(x_range), rxv = rel,
+    miny = min_y, maxy = max_y, incy = 1, nsy = length(y_range), ryv = rel,
     minv = min_v, maxv = max_v, incv = 1, nsv = length(v_range)
   )
 

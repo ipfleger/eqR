@@ -1,4 +1,4 @@
-plot_equivalent <- function(data = NULL, results = NULL, relative = FALSE, gg = FALSE, point_data = NULL, x_rug = NULL, y_rug = NULL) {
+plot_equivalent <- function(results = NULL, data = NULL,  relative = FALSE, gg = FALSE, point_data = NULL, x_rug = NULL, y_rug = NULL) {
 
   if(is.null(data)){
     if(!is.null(results)){

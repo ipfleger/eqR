@@ -30,11 +30,13 @@ version (`er_r1update`) modifies the input matrix in place, whereas this
 R function returns the updated matrix as a new object.
 }
 \examples{
+\dontrun{
 H <- diag(3) # Initial matrix (identity)
 v <- c(1, 2, 3)
 s <- 0.1
 H_new <- er_r1update(H, s, v)
 print(H_new)
+}
 }
 \author{
 Jaehoon Seol (Original C code), Google's Gemini (R translation)

@@ -25,6 +25,7 @@ formula-based syntax. If no plan is supplied, it auto-generates all-to-all
 mappings.
 }
 \examples{
+\dontrun{
 recipe <- init_equating() |>
   add_form(form_a_data, name = "Form A") |>
   add_form(form_b_data, name = "Form B") |>
@@ -43,4 +44,5 @@ recipe <- add_plan(recipe,
 
 # Example 3: Auto-generate all possible pairings.
 recipe <- add_plan(recipe)
+}
 }

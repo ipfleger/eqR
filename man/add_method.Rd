@@ -74,18 +74,17 @@ Optional parameters for both smoothing and equating methods can be passed via `.
 \itemize{
   \item \code{smooth = "none"}: (Default) No smoothing is applied.
   \item \code{smooth = "beta_binomial"}: Four-parameter beta-binomial smoothing.
-    \itemize{
-      \item \code{nparm}: The number of parameters for the beta distribution (2 or 4). Integer. *Default: \code{4}*.
-      \item \code{rel}: The reliability of the test (e.g., KR-20). Numeric. *Default: \code{0.85}*.
-    }
+  \itemize{
+    \item \code{nparm}: The number of parameters for the beta distribution (2 or 4). Integer. *Default: \code{4}*.
+  }
   \item \code{smooth = "log_linear"}: Univariate log-linear presmoothing.
-    \itemize{
-      \item \code{degree}: The degree of the polynomial to fit. Integer. *Default: \code{3}*.
-    }
+  \itemize{
+    \item \code{degree}: The degree of the polynomial to fit. Integer. *Default: \code{3}*.
+  }
   \item \code{smooth = "cubic_spline"}: Post-smoothing using cubic splines.
-    \itemize{
-      \item \code{s}: The smoothing parameter. Numeric. *Default: \code{0.2}*.
-    }
+  \itemize{
+    \item \code{s}: The smoothing parameter. Numeric. *Default: \code{0.2}*.
+  }
   \item \code{smooth = "kernel"}: Kernel equating, which uses a continuized score distribution.
 }
 
@@ -98,9 +97,11 @@ Optional parameters for both smoothing and equating methods can be passed via `.
 }
 
 \examples{
+\dontrun{
 recipe <- init_equating() |> add_design("common-item")
 # Add a linear method that runs both Tucker and Chained equating
 recipe <- recipe |> add_method("linear", type = c("tucker", "chained"))
 # Add a mean equating method (slope fixed to 1)
 recipe <- recipe |> add_method("linear", type = "tucker", mean_only = TRUE)
+}
 }

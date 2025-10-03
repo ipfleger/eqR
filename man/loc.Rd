@@ -33,10 +33,12 @@ of this, as R typically uses 1-based indexing. To use this index to subset
 a standard R vector, you would need to add 1.
 }
 \examples{
+\dontrun{
 # Find the location of the score 16 in a sequence from 10 to 20 by 2.
 score_location <- loc(x = 16, min = 10, inc = 2)
 print(score_location)
 #> [1] 3
+}
 }
 \author{
 R. L. Brennan (Original C code), Google's Gemini (R translation)
