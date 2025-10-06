@@ -61,7 +61,7 @@ single_equip_continuized_loglinear <- eq |>
   run_equating(boot_replications = 1)  # Don't run this with 1000 boot_replications. It will run until you die. Really any replications will make it take a long time.
 
 
-plot_equivalent(results = single_equip_continuized_loglinear$`Form C;Form A`$`S E I Z`$`Equipercentile`)
+plot_equivalent(results = single_equip_continuized_loglinear$`Form C;Form A`$`S E I Z`$`Equipercentile (CLL)`)
 # Missing confidence intervals don't plot well.
 
 
