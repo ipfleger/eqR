@@ -2,12 +2,12 @@
 # I am currently debugging
 
 
-equipercentile <- function(forms, design, eq, title, boot_type = "perc", boot_replications = 1000){
+equipercentile <- function(forms, design, eq, title){
   if(design %in% c("S", "R")) {
-    equipercentile_sgrg(eq = eq, forms = forms, title = title, boot_type = boot_type, boot_replications = boot_replications)
+    equipercentile_sgrg(eq = eq, forms = forms, title = title)
   } else if (design == "CG") {
     anchors <- get_anchors(eq)
-    equipercentile_cg(eq = eq, forms = forms, anchors = anchors[[paste0(forms, collapse = ";")]], title = title, boot_type = boot_type, boot_replications = boot_replications)
+    equipercentile_cg(eq = eq, forms = forms, anchors = anchors[[paste0(forms, collapse = ";")]], title = title)
   }
 }
 
@@ -119,12 +119,15 @@ equate_sgrg_statistic <- function(data, i, method_options, score_params, smooth_
 }
 
 
-equipercentile_sgrg <- function(eq, forms, title, boot_type = "perc", boot_replications = 1000) {
+equipercentile_sgrg <- function(eq, forms, title) {
 
   # 1. Initial Setup
-  method_options <- get_method_options(eq@methods[[title]])
+  method_options <- eq@methods[[title]]$options
   smooth_code <- eq@methods[[title]]$smooth
   method_name <- paste("Equipercentile", switch(smooth_code, N = "(No Smoothing)", B = "(Beta-Binomial)", L = "(Log-Linear)", S = "(Cubic Spline)", K = "(Kernel)", Z = "(CLL)"))
+
+  boot_type <- method_options$boot_type
+  boot_replications = method_options$boot_reps
 
   # 2. Data and Score Scale Preparation
   dat <- data.frame(do.call(cbind, lapply(forms, \(frm) rowSums(eq@data[[frm]], na.rm = TRUE))))
@@ -194,7 +197,7 @@ equipercentile_sgrg <- function(eq, forms, title, boot_type = "perc", boot_repli
   }
 
   return(results)
-}
+}#, boot_type = "perc", boot_replications = 1000
 
 
 #' Prepare Data for Common-Item Equipercentile Equating
@@ -339,12 +342,15 @@ equate_cg_statistic <- function(bdf_xv_boot, bdf_yv_boot, score_params, type, me
 }
 
 
-equipercentile_cg <- function(eq, forms, anchors, title, boot_type = "perc", boot_replications = 1000) {
+equipercentile_cg <- function(eq, forms, anchors, title) {#, boot_type = "perc", boot_replications = 1000
 
   # 1. Initial Setup
   method_spec <- eq@methods[[title]]
-  method_options <- get_method_options(method_spec)
+  method_options <- eq@methods[[title]]$options
   type <- method_spec$type
+
+  boot_type <- method_options$boot_type
+  boot_replications = method_options$boot_reps
 
   # 2. Prepare Data
   prep_data <- prepare_cg_data(eq, forms, anchors)

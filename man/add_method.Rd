@@ -63,6 +63,11 @@ depend on the `method` and the `design` set in the recipe.
     \item `type = "modified_frequency"`: The Modified Frequency Estimation (MFE) method, which adjusts for anchor reliability. Also runs Braun-Holland under MFE.
   }
 }
+\strong{`method = "irt"`}
+\itemize{
+  \item `type = "true_score"` (Default): Performs IRT true score equating.
+  \item `type = "observed_score"`: Performs IRT observed score equating.
+}
 }
 
 \section{Smoothing & Optional Arguments}{
@@ -93,6 +98,15 @@ Optional parameters for both smoothing and equating methods can be passed via `.
   \item \code{mean_only}: Sets the slope to 1 to perform mean equating. Logical. *Default: \code{FALSE}*.
   \item \code{w1}: For linear CG methods, the weight given to population 1 in the synthetic population. Numeric. *Default: \code{1}*.
   \item \code{internal_anchors}: For linear CG methods, specifies if the anchor test is internal. Logical. *Default: \code{TRUE}*.
+}
+
+\strong{IRT Method Options}
+\itemize{
+  \item \code{irt_pars}: A `mirt` model object, or a list of them, containing IRT item parameters. This is a **required** argument.
+  \item \code{theta}: A numeric vector defining the grid for the latent ability scale. *Default: \code{seq(-4, 4, length.out = 100)}*.
+  \item \code{theta_dist}: For observed score equating, a numeric vector or character string (`"normal"` or `"uniform"`) defining the population ability distribution. *Default: \code{"normal"}*.
+  \item \code{bootstrap}: Should parametric bootstrap standard errors be calculated? Logical. *Default: \code{FALSE}*. Requires a `mirt` model object for `irt_pars`.
+  \item \code{boot_reps}: The number of bootstrap replications. Integer. *Default: \code{100}* for IRT, \code{1000} otherwise.
 }
 }
 

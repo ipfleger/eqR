@@ -7,7 +7,8 @@ equate_recipe <- S7::new_class(
     data_ids = S7::class_list,
     plan     = S7::class_data.frame,
     design   = S7::class_character,
-    methods  = S7::class_list
+    methods  = S7::class_list,
+    results = S7::class_list # We are actually going to store results here. We will then go to plot, print, and summary methods. Is this too crazy? I'm not sure how this will work out.
   )
 )
 
@@ -198,20 +199,23 @@ add_design <- function(equate_recipe, design, counter_balance_by = NULL) {
   equate_recipe
 }
 
-#' Get Method Options with Defaults
+#' Get Master List of Default Method Options
 #'
-#' Merges user-specified options for an equating method with a master list of
-#' default values. User options take precedence.
+#' @description
+#' Provides a master list of default arguments for all equating methods and their
+#' options. This function serves as a single source of truth for default values
+#' used throughout the package, primarily by `add_method()`.
 #'
-#' @param method_spec A single method specification list from the `equate_recipe`
-#'   object (e.g., `eq@methods[[title]]`).
-#'
-#' @return A list containing the complete set of options for the method.
-#' @noRd
-get_method_options <- function(method_spec) {
-  # Master list of all possible default options
-  all_defaults <- list(
-    # General
+#' @return A list containing the complete set of default options.
+#' @keywords internal
+get_method_options <- function() {
+  list(
+    # General Bootstrap
+    bootstrap = FALSE,
+    boot_reps = 1000, # Default for traditional (non-IRT) methods
+    boot_type = "perc",
+
+    # General Linear
     mean_only = FALSE,
 
     # Linear CG
@@ -225,7 +229,7 @@ get_method_options <- function(method_spec) {
 
     # Beta-Binomial
     nparm = 4,
-    rel = NULL, # This was 0.85, but I don't think it should have a default. By default it is calculated from the data as a correlation, it can be overwritten if necessary. I also kind of doubt that this is the way to do it, it may need to be specified as a list or some other means. We may need to experiment, but ultimately I don't like this.
+    rel = NULL,
 
     # Log-Linear (univariate)
     degree = 3,
@@ -239,21 +243,13 @@ get_method_options <- function(method_spec) {
     inc_u = 1,
     min_u = 0,
     min_v = 0,
-    inc_v = 1
+    inc_v = 1,
+
+    # IRT
+    theta = seq(-4, 4, length.out = 100),
+    theta_dist = "normal"
   )
-
-  # Get user-provided options from the recipe
-  user_options <- method_spec$options
-
-  # Merge them - user_options will overwrite defaults
-  final_options <- all_defaults
-  for (name in names(user_options)) {
-    final_options[[name]] <- user_options[[name]]
-  }
-
-  return(final_options)
 }
-
 #' Add an equating method to a recipe
 #'
 #' This function adds a specific equating method, including its calculation type
@@ -306,6 +302,11 @@ get_method_options <- function(method_spec) {
 #'     \item `type = "modified_frequency"`: The Modified Frequency Estimation (MFE) method, which adjusts for anchor reliability. Also runs Braun-Holland under MFE.
 #'   }
 #' }
+#' \strong{`method = "irt"`}
+#' \itemize{
+#'   \item `type = "true_score"` (Default): Performs IRT true score equating.
+#'   \item `type = "observed_score"`: Performs IRT observed score equating.
+#' }
 #'
 #' @section Smoothing & Optional Arguments:
 #' The `smooth` argument selects a procedure to smooth the score distributions.
@@ -336,6 +337,15 @@ get_method_options <- function(method_spec) {
 #'   \item \code{internal_anchors}: For linear CG methods, specifies if the anchor test is internal. Logical. *Default: \code{TRUE}*.
 #' }
 #'
+#' \strong{IRT Method Options}
+#' \itemize{
+#'   \item \code{irt_pars}: A `mirt` model object, or a list of them, containing IRT item parameters. This is a **required** argument.
+#'   \item \code{theta}: A numeric vector defining the grid for the latent ability scale. *Default: \code{seq(-4, 4, length.out = 100)}*.
+#'   \item \code{theta_dist}: For observed score equating, a numeric vector or character string (`"normal"` or `"uniform"`) defining the population ability distribution. *Default: \code{"normal"}*.
+#'   \item \code{bootstrap}: Should parametric bootstrap standard errors be calculated? Logical. *Default: \code{FALSE}*. Requires a `mirt` model object for `irt_pars`.
+#'   \item \code{boot_reps}: The number of bootstrap replications. Integer. *Default: \code{100}* for IRT, \code{1000} otherwise.
+#' }
+#'
 #' @examples
 #' \dontrun{
 #' recipe <- init_equating() |> add_design("common-item")
@@ -345,22 +355,36 @@ get_method_options <- function(method_spec) {
 #' recipe <- recipe |> add_method("linear", type = "tucker", mean_only = TRUE)
 #' }
 add_method <- function(equate_recipe, method, type = "default", smooth = "none", ...) {
-  # --- 1. Input Validation ---
+  # --- 1. Setup ---
   if (!length(equate_recipe@design)) {
     cli::cli_abort("A design must be added with `add_design()` before adding a method.")
   }
 
-  args <- list(...)
-
+  user_args <- list(...)
   method_norm <- tolower(method)
   smooth_norm <- tolower(smooth)
   design <- equate_recipe@design
 
-  # --- 2. Normalize and Store Method ---
-  new_method <- list()
-  new_method$options <- args
+  # --- 2. Consolidate and Validate Options ---
 
-  # Normalize primary method
+  # Get master list of defaults
+  defaults <- get_method_options()
+
+  # Apply special-case defaults based on method or smoothing
+  if (method_norm == "irt") {
+    defaults$boot_reps <- 100
+  }
+  if (smooth_norm == "continuized_log_linear" && is.null(user_args$boot_reps)) {
+    defaults$boot_reps <- 1
+  }
+
+  # Merge user arguments with defaults so user args take precedence
+  options <- defaults
+  for (name in names(user_args)) {
+    options[[name]] <- user_args[[name]]
+  }
+
+  new_method <- list()
   new_method$method <- switch(method_norm,
                               "linear" = "L",
                               "equipercentile" = "E",
@@ -368,16 +392,48 @@ add_method <- function(equate_recipe, method, type = "default", smooth = "none",
                               cli::cli_abort("Unknown method: '{method}'. Choose 'linear', 'equipercentile', or 'irt'.")
   )
 
-  # --- IRT Specific Argument Handling ---
+  # --- Method-Specific Validations ---
   if (new_method$method == "IRT") {
-    irt_pars <- args$irt_pars
-    if (is.null(irt_pars)) {
-      cli::cli_abort("For the 'irt' method, 'irt_pars' must be provided.")
+    if (is.null(options$irt_pars)) {
+      cli::cli_abort("For the 'irt' method, the 'irt_pars' argument must be provided.")
     }
 
-    # Store irt_pars within the method's options
-    new_method$options$irt_pars <- irt_coefs(irt_pars)
+    if (options$bootstrap) {
+      is_mirt_object <- function(obj) (attr(class(obj), "package") %||% "not") == "mirt"
+      if (is.list(options$irt_pars) && !is.data.frame(options$irt_pars)) {
+        if (!all(sapply(options$irt_pars, is_mirt_object))) {
+          cli::cli_abort("For bootstrapped IRT standard errors, 'irt_pars' must be a 'mirt' model object or a list of 'mirt' model objects.")
+        }
+      } else if (!is_mirt_object(options$irt_pars)) {
+        cli::cli_abort("For bootstrapped IRT standard errors, 'irt_pars' must be a 'mirt' model object.")
+      }
+      cli::cli_alert_info("Parametric bootstrapping for IRT methods is computationally intensive and may take a long time.")
+    }
+
+    if (!is.numeric(options$theta)) {
+      cli::cli_abort("'theta' must be a numeric vector.")
+    }
+
+    if (!is.numeric(options$theta_dist)) {
+      if (length(options$theta_dist) > 1) {
+        cli::cli_abort("'theta_dist' must be a numeric vector of length {length(options$theta)}, 'normal', or 'uniform'.")
+      }
+      if (!tolower(options$theta_dist) %in% c("normal", "uniform")) {
+        cli::cli_abort("'theta_dist' string must be either 'normal' or 'uniform'.")
+      }
+    }
+
+    # Store only the relevant options for this method
+    final_options <- options[c("irt_pars", "theta", "theta_dist", "bootstrap", "boot_reps")]
+
+  } else {
+    # For non-IRT methods, just store the user arguments
+    final_options <- options#user_args we need defaults here too you goof
   }
+
+  # Store the final, complete set of options
+  new_method$options <- final_options
+
 
   # Normalize smoothing type
   new_method$smooth <- switch(smooth_norm,
@@ -392,11 +448,9 @@ add_method <- function(equate_recipe, method, type = "default", smooth = "none",
 
   # Normalize calculation type based on method and design
   if (new_method$method == "L") {
-    is_mean <- args$mean_only %||% FALSE
-    new_method$type <- ifelse(is_mean, "mean", "linear")
+    new_method$type <- ifelse(options$mean_only, "mean", "linear")
   } else if (new_method$method == "E") {
-    # Logic for equipercentile types...
-    new_method$type <- "equipercentile_type_placeholder" # Placeholder
+    new_method$type <- "equipercentile" # Placeholder
   } else if (new_method$method == "IRT") {
     new_method$type <- switch(tolower(type),
                               "default" = "true_score",
@@ -421,7 +475,7 @@ add_method <- function(equate_recipe, method, type = "default", smooth = "none",
   title_parts <- c(design, new_method$method, type_str, new_method$smooth)
   new_method$title <- paste(title_parts, collapse = " ")
 
-  if(new_method$title %in% names(equate_recipe@methods)) {
+  if (new_method$title %in% names(equate_recipe@methods)) {
     cli::cli_alert_warning("A method with the same configuration already exists and will be overwritten.")
   }
 
@@ -430,9 +484,13 @@ add_method <- function(equate_recipe, method, type = "default", smooth = "none",
   equate_recipe
 }
 
-run_equating <- function(eq, boot_type = "perc", boot_replications = 1000){
 
-  results <- lapply(1:nrow(eq@plan) |> `names<-`(apply(eq@plan, 1, paste0,collapse = ";")), \(i) {
+
+
+
+run_equating <- function(eq){#, boot_type = "perc", boot_replications = 1000
+
+  eq@results <- lapply(1:nrow(eq@plan) |> `names<-`(apply(eq@plan, 1, paste0,collapse = ";")), \(i) {
 
     lapply(eq@methods, \(method){
       # Correctly extract the forms for the current iteration
@@ -448,13 +506,12 @@ run_equating <- function(eq, boot_type = "perc", boot_replications = 1000){
              type = method$type, # Use the stored type directly
              eq = eq,
              title = method$title,
-             boot_type = boot_type,
-             boot_replications = boot_replications,
              method = method_code)
     })
   })
 
   # Assign the custom class for S3 dispatch
-  class(results) <- "equate_results"
-  return(results)
+  print(summary(eq)) # So we need to make a method for summary for this object.
+  # It will need to
+  return(eq)
 }

@@ -1,15 +1,3 @@
-equate <- function(forms, method, design, type, eq, title,
-                   boot_type = "perc", boot_replications = 1000){
-  if(method == "L"){
-    linear(forms = forms, design = design, eq = eq, title = title, boot_type = boot_type, boot_replications = boot_replications)
-  } else if(method == "E"){
-    equipercentile(forms = forms, design = design, eq = eq, title = title, boot_type = boot_type, boot_replications = boot_replications)
-  } else if(method == "IRT"){
-    irt(forms = forms, design = design, type = type, eq = eq, title = title, boot_type = boot_type, boot_replications = boot_replications)
-  }
-}
-
-
 get_anchors <- function(eq){
   lapply(1:nrow(eq@plan) |> `names<-`(apply(eq@plan, 1, paste0,collapse = ";")), \(i) eq@forms[[eq@plan[i,"from"]]][eq@forms[[eq@plan[i,"from"]]] %in% eq@forms[[eq@plan[i,"to"]]]])
 }
@@ -31,57 +19,34 @@ define_range <- function(eq, form, method_options){
 
 `%||%` <- function(a, b) if (is.null(a)) b else a
 
-#' Define and Summarize a Score Range
+#' Internal Equating Dispatcher
 #'
 #' @description
-#' Calculates the theoretical minimum and maximum scores, and the score increment
-#' based on item-level data. This function is flexible, allowing the user to
-#' either have these parameters calculated automatically or to provide them as
-#' manual overrides. It can also optionally print a summary of the range and
-#' the observed total scores.
+#' This function is the internal switchboard that calls the appropriate method-specific
+#' wrapper (`linear`, `equipercentile`, `irt`) based on the method specified
+#' in the `equate_recipe`. It is called by `run_equating()` for each method
+#' defined in the recipe's plan.
 #'
-#' @details
-#' The function determines the score range by summing the minimum and maximum
-#' possible scores for each item (column) in the `ctabs` data frame. The increment
-#' is calculated as the median of the maximum possible scores for the items.
-#' The `%||%` operator is used to provide a default value if an argument is `NULL`,
-#' allowing for easy overriding of calculated parameters.
+#' @param forms A character vector of length two indicating the forms to be equated.
+#' @param method A single-character code (`"L"`, `"E"`, `"IRT"`) specifying the
+#'   primary equating method.
+#' @param design A character string for the equating design (e.g., "cg").
+#' @param type A character string specifying the sub-method or calculation type.
+#' @param eq The `equate_recipe` object containing all forms and methods.
+#' @param title The unique title of the method being run, used to retrieve
+#'   the correct options from the `eq` object.
+#' @param boot_type The type of bootstrap confidence intervals.
+#' @param boot_replications The number of bootstrap replications.
 #'
-#' @param ctabs A data frame containing item-level response data, where each
-#'   column represents an item.
-#' @param min_score (Optional) A numeric value to override the calculated minimum score.
-#'   If `NULL` (default), the minimum is calculated from the data.
-#' @param max_score (Optional) A numeric value to override the calculated maximum score.
-#'   If `NULL` (default), the maximum is calculated from the data.
-#' @param inc (Optional) A numeric value to override the calculated score increment.
-#'   If `NULL` (default), the increment is calculated from the data.
-#' @param verbose A logical value. If `TRUE`, prints a summary of the calculated
-#'   range and observed score distribution to the console. Defaults to `FALSE`.
+#' @keywords internal
 #'
-#' @return A list containing the following elements:
-#'   \item{min}{The final minimum score (either user-provided or calculated).}
-#'   \item{max}{The final maximum score.}
-#'   \item{inc}{The final score increment.}
-#'   \item{range}{A numeric vector representing the full sequence of scores.}
-#'   \item{num_sum}{A quantile summary of the observed total scores.}
-#'
-#' @examples
-#' \dontrun{
-#' # Create a sample item data frame
-#' sample_ctabs <- data.frame(
-#'   item1 = c(0, 1, 1, 0),
-#'   item2 = c(0, 0, 1, 1),
-#'   item3 = c(0, 1, 0, 1)
-#' )
-#' }
-equate <- function(forms, method, design, type, eq, title,
-                   boot_type = "perc", boot_replications = 1000){
+equate <- function(forms, method, design, type, eq, title){
   if(method == "L"){
-    linear(forms = forms, design = design, eq = eq, title = title, boot_type = boot_type, boot_replications = boot_replications)
+    linear(forms = forms, design = design, eq = eq, title = title)
   } else if(method == "E"){
-    equipercentile(forms = forms, design = design, eq = eq, title = title, boot_type = boot_type, boot_replications = boot_replications)
+    equipercentile(forms = forms, design = design, eq = eq, title = title)
   } else if(method == "IRT"){
-    irt(forms = forms, design = design, type = type, eq = eq, title = title, boot_type = boot_type, boot_replications = boot_replications)
+    irt(forms = forms, design = design, type = type, eq = eq, title = title)
   }
 }
 

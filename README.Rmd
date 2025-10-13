@@ -1,95 +1,51 @@
 ---
 title: "README"
 author: "Isaac Pfleger, PhD"
-date: "2025-07-15"
+date: "2025-10-06"
 output: html_document
 ---
 
-Project Summary
+# Project Summary
 
-This project is an R package that provides a modern, user-friendly implementation of the "Equating Recipes" program, originally written in C by Robert L. Brennan, Tianyou Wang, Seonghoon Kim, and Jaehoon Seol. "Equating Recipes" is a comprehensive set of functions for performing various psychometric equating methods, as described in the book "Test Equating, Scaling, and Linking: Methods and Practices" by Kolen and Brennan (2004).
+This project is an R package that aims to provide a modern, user-friendly implementation of the "Equating Recipes" program, originally written in C by Robert L. Brennan, Tianyou Wang, Seonghoon Kim, and Jaehoon Seol. "Equating Recipes" is a comprehensive set of functions for performing various psychometric equating methods, as described in the book "Test Equating, Scaling, and Linking: Methods and Practices" by Kolen and Brennan (2004).
 
 The R package will make these powerful equating methods more accessible to the R community, providing a robust and well-documented tool for researchers, psychometricians, and assessment professionals. It will cover a wide range of equating designs, methods, and smoothing techniques, mirroring the extensive functionality of the original C program.
 
-R-Equating-Recipes
+# eqR
 
-R-Equating-Recipes is an R package that implements the test equating procedures from the "Equating Recipes" C program. This package provides a comprehensive set of tools for psychometric equating, making the methods described in Kolen and Brennan's "Test Equating, Scaling, and Linking: Methods and Practices" (2004) accessible within the R environment.
+eqR is an R package that implements the test equating procedures from the "Equating Recipes" C program. This package provides a comprehensive set of tools for psychometric equating, making the methods described in Kolen and Brennan's "Test Equating, Scaling, and Linking: Methods and Practices" 3rd edition (2014) accessible within the R environment.
 
-Overview
+# Overview
 
 Test equating is a statistical process used in psychometrics to ensure that scores from different forms of a test are comparable. "Equating Recipes" was developed to provide open-source functions for a wide variety of equating procedures, enhancing transparency and providing valuable tools for researchers. This R package aims to continue that mission by providing a modern, easy-to-use implementation of these methods.
 
-Features
+# Features
 
 This package provides a comprehensive set of functions for various equating designs, methods, and smoothing techniques, including:
 
 Equating Designs:
 
-    Random Groups (RG) 
-
-Single Group (SG) 
-
-Common-Item Nonequivalent Groups (CNEG) 
+- Random Groups (RG) 
+- Single Group (SG) 
+- Common-Item Nonequivalent Groups (CNEG) 
 
 Equating Methods:
 
-    Mean and Linear Equating 
-
-Equipercentile Equating 
-
-Item Response Theory (IRT) Equating 
+- Mean and Linear Equating 
+- Equipercentile Equating 
+- Item Response Theory (IRT) Equating 
 
 Smoothing Methods:
 
-    Beta-Binomial Presmoothing 
-
-Log-Linear Presmoothing 
-
-Cubic Spline Postsmoothing 
-
-Kernel Equating 
-
-Continuized Log-Linear Equating 
+- Beta-Binomial Presmoothing 
+- Log-Linear Presmoothing 
+- Cubic Spline Postsmoothing 
+- Kernel Equating 
+- Continuized Log-Linear Equating 
 
 Standard Error Estimation:
 
-    Delta Method 
+- Delta Method 
+- Bootstrap 
 
-Bootstrap 
-
-Installation
-
-You can install the development version of R-Equating-Recipes from GitHub with:
-R
-
-# install.packages("devtools")
-devtools::install_github("your-username/R-Equating-Recipes")
-
-Example
-
-Here is a basic example of how to perform linear equating with the random groups design:
-R
-
-library(eqr)
-
-# Load example data for Form X and Form Y
-data("act_math")
-
-# Perform linear equating
-equated_scores <- equate_linear_rg(
-  x_scores = act_math$form_x_scores,
-  x_freq = act_math$form_x_freq,
-  y_scores = act_math$form_y_scores,
-  y_freq = act_math$form_y_freq
-)
-
-# View the equated scores
-print(equated_scores)
-
-Contributing
-
-Contributions are welcome! If you have suggestions for improvement, please open an issue or submit a pull request.
-
-License
-
-The original "Equating Recipes" C code is distributed under the GNU Lesser General Public License, version 3 (LGPLv3). This R package is licensed under [Choose an appropriate license, e.g., GPL-3].
+This is very much experimental and is currently only public for some random quirks of my development process. Use at your own risk/delight

@@ -2,64 +2,33 @@
 % Please edit documentation in R/r_utilities.R
 \name{equate}
 \alias{equate}
-\title{Define and Summarize a Score Range}
+\title{Internal Equating Dispatcher}
 \usage{
-equate(
-  forms,
-  method,
-  design,
-  type,
-  eq,
-  title,
-  boot_type = "perc",
-  boot_replications = 1000
-)
+equate(forms, method, design, type, eq, title)
 }
 \arguments{
-\item{ctabs}{A data frame containing item-level response data, where each
-column represents an item.}
+\item{forms}{A character vector of length two indicating the forms to be equated.}
 
-\item{min_score}{(Optional) A numeric value to override the calculated minimum score.
-If `NULL` (default), the minimum is calculated from the data.}
+\item{method}{A single-character code (`"L"`, `"E"`, `"IRT"`) specifying the
+primary equating method.}
 
-\item{max_score}{(Optional) A numeric value to override the calculated maximum score.
-If `NULL` (default), the maximum is calculated from the data.}
+\item{design}{A character string for the equating design (e.g., "cg").}
 
-\item{inc}{(Optional) A numeric value to override the calculated score increment.
-If `NULL` (default), the increment is calculated from the data.}
+\item{type}{A character string specifying the sub-method or calculation type.}
 
-\item{verbose}{A logical value. If `TRUE`, prints a summary of the calculated
-range and observed score distribution to the console. Defaults to `FALSE`.}
-}
-\value{
-A list containing the following elements:
-  \item{min}{The final minimum score (either user-provided or calculated).}
-  \item{max}{The final maximum score.}
-  \item{inc}{The final score increment.}
-  \item{range}{A numeric vector representing the full sequence of scores.}
-  \item{num_sum}{A quantile summary of the observed total scores.}
+\item{eq}{The `equate_recipe` object containing all forms and methods.}
+
+\item{title}{The unique title of the method being run, used to retrieve
+the correct options from the `eq` object.}
+
+\item{boot_type}{The type of bootstrap confidence intervals.}
+
+\item{boot_replications}{The number of bootstrap replications.}
 }
 \description{
-Calculates the theoretical minimum and maximum scores, and the score increment
-based on item-level data. This function is flexible, allowing the user to
-either have these parameters calculated automatically or to provide them as
-manual overrides. It can also optionally print a summary of the range and
-the observed total scores.
+This function is the internal switchboard that calls the appropriate method-specific
+wrapper (`linear`, `equipercentile`, `irt`) based on the method specified
+in the `equate_recipe`. It is called by `run_equating()` for each method
+defined in the recipe's plan.
 }
-\details{
-The function determines the score range by summing the minimum and maximum
-possible scores for each item (column) in the `ctabs` data frame. The increment
-is calculated as the median of the maximum possible scores for the items.
-The `%||%` operator is used to provide a default value if an argument is `NULL`,
-allowing for easy overriding of calculated parameters.
-}
-\examples{
-\dontrun{
-# Create a sample item data frame
-sample_ctabs <- data.frame(
-  item1 = c(0, 1, 1, 0),
-  item2 = c(0, 0, 1, 1),
-  item3 = c(0, 1, 0, 1)
-)
-}
-}
+\keyword{internal}

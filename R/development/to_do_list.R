@@ -1,12 +1,26 @@
 # Single Group
 pse <- readRDS("~/statwise ecosystem 2.0/lyzer/data/pse_google.rds")
 
+model <- lyzer:::pse2rasch(pse)
+
+tam <- TAM::tam(model@Data$data)
+tam$item
+
+
+
+
+
+
+
+lyzer:::tidy_coefs(model, tibble = TRUE, irt = TRUE)
+
+bl <- formr:::pse2bl(pse)
+devtools::load_all("~/statwise ecosystem 2.0/formr")
 forms <- formr:::build(is = bl@is |> dplyr::mutate(decision = "Use"),
                        f = 3,
                        ipo = bl@ipo[,c("obj", "per")] |> dplyr::mutate(per = round(per/2.86)),
                        okol = data.frame(forms = c("form1,form2"), ol = .2))
 
-bl <- formr:::pse2bl(pse)
 bl@forms <- forms |> dplyr::rename(`Form A` = form1,
                             `Form B` = form2,
                             `Form C` = form3)
@@ -25,41 +39,65 @@ eq <- init_equating() |>
 
 # Single Group Design -----------------------------------
 # Mean equating
-single_mean <- eq |>
+real_big <- eq |>
   add_design("SG") |> # Add the design
   add_method(
-    method = "linear", mean_only = TRUE # Mean equating
-  ) |>
-  run_equating(boot_replications = 1000, boot_type = "norm")
-# Linear equating
-single_linear <- eq |>
-  add_design("SG") |> # Add the design
+    method = "linear", mean_only = TRUE,
+    boot_reps = 1000, boot_type = "norm" # Mean equating
+  ) |> # Add the design
   add_method(
-    method = "linear",
-  ) |>
-  run_equating(boot_replications = 1000, boot_type = "basic")
-# Equipercentile equating
-single_equipercentile <- eq |>
-  add_design("SG") |>
+    method = "linear",boot_reps = 1000, boot_type = "basic"
+  )  |>
   add_method(
     method = "equipercentile" # equipercentile equating no smoothing
-  ) |>
-  run_equating(boot_replications = 1000) # bootstrap options are from boot::boot
-
-single_equip_loglinear <- eq |>
-  add_design("SG") |>
+  )  |>
   add_method(
     method = "equipercentile", smooth = "log_linear" # equipercentile equating no smoothing
   ) |>
-  run_equating(boot_replications = 1000)
-
-single_equip_continuized_loglinear <- eq |>
-  add_design("SG") |>
   add_method(
-    method = "equipercentile", smooth = "continuized_log_linear" # equipercentile equating no smoothing
+    method = "equipercentile", smooth = "continuized_log_linear", boot_reps = 1 # equipercentile equating no smoothing
+  )  |> # Add the design
+  add_method(
+    method = "linear", mean_only = TRUE,
+    boot_reps = 1000, boot_type = "norm" # Mean equating
+  )  |> # Add the design
+  add_method(
+    method = "linear",boot_reps = 1000, boot_type = "basic"
   ) |>
-  run_equating(boot_replications = 1)  # Don't run this with 1000 boot_replications. It will run until you die. Really any replications will make it take a long time.
+  add_method(
+    method = "equipercentile" # equipercentile equating no smoothing
+  )  |>
+  add_method(
+    method = "equipercentile", smooth = "log_linear" # equipercentile equating no smoothing
+  )  |>
+  add_method(
+    method = "equipercentile", smooth = "continuized_log_linear", boot_reps = 1 # equipercentile equating no smoothing
+  ) |> # Add the design
+  add_method(
+    method = "irt", irt_pars = model
+  ) |> # Add the design
+  add_method(
+    method = "irt", irt_pars = model, type = "observed_score",
+  ) |>
+  run_equating()  # Don't run this with 1000 boot_replications. It will run until you die. Really any replications will make it take a long time.
 
+
+
+
+lapply(names(real_big@results) |> `names<-`(names(real_big@results)), \(forms) {
+  lapply(names(real_big@results[[forms]]) |> `names<-`(names(real_big@results[[forms]])), \(method){
+
+     x <- real_big@results[[forms]][[method]]
+    frms <- strsplit(forms, split = ";")[[1]]
+
+    data.frame(possible = x$x_score,
+               equivalent = x$equivalent_score) |>
+      `colnames<-`(c(paste0(frms[1], "_score"),
+                     paste(frms[2], method, "equivalent")))
+  })
+
+
+})
 
 plot_equivalent(results = single_equip_continuized_loglinear$`Form C;Form A`$`S E I Z`$`Equipercentile (CLL)`)
 # Missing confidence intervals don't plot well.
@@ -80,6 +118,40 @@ data.frame(x = 0:70, n = n, b = b, l = l, #s = s,
   tidyr::pivot_longer(-x) |>
   ggplot2::ggplot(ggplot2::aes(x = x, y = value, color = name)) +
   ggplot2::geom_line()
+
+# IRT ----------------------
+single_irt <- eq |>
+  add_design("SG") |> # Add the design
+  add_method(
+    method = "irt", irt_pars = model
+  ) |>
+  run_equating()
+
+single_irt_observed <- eq |>
+  add_design("SG") |> # Add the design
+  add_method(
+    method = "irt", irt_pars = model, type = "observed_score",
+  ) |>
+  run_equating()
+single_irt_observed@results$`Form C;Form A`$`S IRT observed_score N`
+
+# methods -
+# ------------------------------------------------------------------------------
+# print -----
+
+
+
+# summary -----
+
+
+
+# plot -----
+
+
+
+# predict -----
+
+
 
 # Random Group Design -----------------------------------
 # equpercentile equating with smoothing
@@ -174,5 +246,4 @@ eq <- init_equating() |>
   run_equating(boot_type = "perc")
 
 
-equipercentile <- function(...){cli::cli_abort("equipercentile equating not yet implemented")}
-irt <- function(...){cli::cli_abort("irt equating not yet implemented")}
+

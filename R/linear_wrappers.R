@@ -1,20 +1,23 @@
 
 
-linear <- function(forms, design, eq, title, boot_type = "perc", boot_replications = 1000){
+linear <- function(forms, design, eq, title){
   if(design %in% c("S", "R")) {
-    linear_sgrg(eq = eq, forms = forms, title = title, boot_type = boot_type, boot_replications = boot_replications)
+    linear_sgrg(eq = eq, forms = forms, title = title)
   } else if (design == "CG") {
     anchors <- get_anchors(eq)
-    linear_cg(eq = eq, forms = forms, anchors = anchors[[paste0(forms, collapse = ";")]], title = title, boot_type = boot_type, boot_replications = boot_replications)
+    linear_cg(eq = eq, forms = forms, anchors = anchors[[paste0(forms, collapse = ";")]], title = title)
   }
 }
 
-linear_sgrg <- function(eq, forms, title, boot_type = "perc", boot_replications = 1000){
+linear_sgrg <- function(eq, forms, title){
 
   # Get all options, merged with defaults
-  method_options <- get_method_options(eq@methods[[title]])
+  method_options <- eq@methods[[title]]$options
   mean_only <- method_options$mean_only
   method_name <- ifelse(mean_only, "Mean", "Linear")
+
+  boot_type <- method_options$boot_type
+  boot_replications = method_options$boot_reps
 
   dat <- data.frame(do.call(cbind, lapply(forms |> `names<-`(forms), \(frm){
     rowSums(eq@data[[frm]][eq@forms[[frm]]], na.rm = TRUE)
@@ -87,14 +90,18 @@ linear_sgrg <- function(eq, forms, title, boot_type = "perc", boot_replications 
   # })
 
   # Return the raw results, ready for the summary function
-  return(results)
+  return(results) # Someday we might allow multiple, but probably not I guess...
 }
 
-linear_cg <- function(eq, forms, anchors, title, boot_type = "perc", boot_replications = 1000){
+linear_cg <- function(eq, forms, anchors, title){
 
   method_spec <- eq@methods[[title]]
-  method_options <- get_method_options(method_spec)
+  method_options <- eq@methods[[title]]$options
   type <- method_spec$type
+
+  boot_type <- method_options$boot_type
+  boot_replications = method_options$boot_reps
+
 
   score_scale <- list(min_x = attr(eq@data[[forms[1]]], "min"), max_x = attr(eq@data[[forms[1]]], "max"), inc_x = attr(eq@data[[forms[1]]], "inc"))
 
