@@ -49,3 +49,5 @@ Standard Error Estimation:
 - Bootstrap 
 
 This is very much experimental and is currently only public for some random quirks of my development process. Use at your own risk/delight
+
+
