@@ -18,36 +18,103 @@ define_range <- function(eq, form, method_options){
 }
 
 `%||%` <- function(a, b) if (is.null(a)) b else a
-
-#' Internal Equating Dispatcher
+#' @title Equating Dispatcher
 #'
 #' @description
-#' This function is the internal switchboard that calls the appropriate method-specific
-#' wrapper (`linear`, `equipercentile`, `irt`) based on the method specified
-#' in the `equate_recipe`. It is called by `run_equating()` for each method
-#' defined in the recipe's plan.
+#' This is an internal function that serves as the primary dispatcher for all
+#' equating methods within the `eqR` package. It is called by `run_equating()`
+#' for each method specified in an `equate_recipe`.
+#'
+#' @details
+#' The function's main role is to interpret the method details stored in the
+#' recipe and call the appropriate low-level "engine" function (e.g., `linear()`,
+#' `equipercentile()`, `irt()`). It also handles design-specific preparations,
+#' such as auto-detecting common items for the CNEG design.
 #'
 #' @param forms A character vector of length two indicating the forms to be equated.
-#' @param method A single-character code (`"L"`, `"E"`, `"IRT"`) specifying the
-#'   primary equating method.
+#' @param method A single character code for the method (e.g., "L", "E", "I", "IRT").
 #' @param design A character string for the equating design (e.g., "cg").
-#' @param type A character string specifying the sub-method or calculation type.
-#' @param eq The `equate_recipe` object containing all forms and methods.
-#' @param title The unique title of the method being run, used to retrieve
-#'   the correct options from the `eq` object.
-#' @param boot_type The type of bootstrap confidence intervals.
-#' @param boot_replications The number of bootstrap replications.
+#' @param type A character string specifying the calculation type (e.g., "tucker", "true_score").
+#' @param eq The `equate_recipe` object containing all data and method options.
+#' @param title The unique title of the method being run, used to retrieve the
+#'   correct options from the `eq` object.
 #'
+#' @return The results of the specific equating engine function.
 #' @keywords internal
-#'
-equate <- function(forms, method, design, type, eq, title){
-  if(method == "L"){
+equate <- function(forms, method, design, type, eq, title) {
+  # --- CNEG Design Preparation: Auto-detect common items ---
+  if (design == "CG" && is.null(eq@methods[[title]]$options$common_items)) {
+    # Get the item lists for each form directly from the @forms slot
+    items_form1 <- eq@forms[[forms[1]]]
+    items_form2 <- eq@forms[[forms[2]]]
+
+    common_names <- intersect(items_form1, items_form2)
+
+    if (length(common_names) == 0) {
+      cli::cli_abort("CNEG design requires common items, but none were detected or provided.")
+    }
+
+    cli::cli_alert_info("No 'common_items' detected. Using {length(common_names)} items with matching names as the anchor.")
+
+    common_items_map <- data.frame(
+      x = common_names,
+      y = common_names,
+      stringsAsFactors = FALSE
+    )
+    names(common_items_map) <- forms
+    eq@methods[[title]]$options$common_items <- common_items_map
+  }
+
+  # --- Dispatch to the appropriate engine ---
+  if (method == "I") {
+    identity_equate(forms = forms, eq = eq)
+  } else if (method == "L") {
     linear(forms = forms, design = design, eq = eq, title = title)
-  } else if(method == "E"){
+  } else if (method == "E") {
     equipercentile(forms = forms, design = design, eq = eq, title = title)
-  } else if(method == "IRT"){
+  } else if (method == "IRT") {
     irt(forms = forms, design = design, type = type, eq = eq, title = title)
   }
+}
+
+
+
+
+
+
+#' Perform Identity Equating
+#'
+#' @description
+#' This function performs identity equating, a baseline method where the equated
+#' score is simply the original score. It is useful for comparisons.
+#'
+#' @param forms A character vector of the two forms being equated (e.g., c("formX", "formY")).
+#' @param eq The `equate_recipe` object containing all necessary data.
+#' @param ... Additional arguments, for forward compatibility.
+#'
+#' @return A list with the standardized equating output structure.
+#' @keywords internal
+identity_equate <- function(forms, eq, ...) {
+  # --- 1. Determine Score Range for the "from" form ---
+  from_form <- forms[1]
+  min_score <- attr(eq@data[[from_form]], "min")
+  max_score <- attr(eq@data[[from_form]], "max")
+  x_score <- min_score:max_score
+
+  # --- 2. The "equating" is just the identity function ---
+  equivalent_score <- x_score
+
+  # --- 3. Assemble Standardized Output ---
+  # This structure should match the output of your other equating engines
+  result <- list(
+    x_score = x_score,
+    equivalent_score = equivalent_score,
+    observed_scores_x = rowSums(eq@data[[forms[1]]][, -1]),
+    observed_scores_y = rowSums(eq@data[[forms[2]]][, -1]),
+    diagnostics = list()
+  )
+
+  return(stats::setNames(list(result), "Identity"))
 }
 
 #' KR20

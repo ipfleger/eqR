@@ -124,8 +124,8 @@ plot_equating_comparison <- function(results_list, title = NULL, relative = FALS
   plot_data_list <- lapply(names(results_list), function(method_name) {
     data.frame(
       Method = method_name,
-      x_score = results_list[[method_name]]$x_score,
-      equivalent_score = results_list[[method_name]]$equivalents
+      x_score = results_list[[method_name]][[1]]$x_score,
+      equivalent_score = results_list[[method_name]][[1]]$equivalent_score
     )
   })
   plot_data <- do.call(rbind, plot_data_list)

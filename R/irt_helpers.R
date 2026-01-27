@@ -50,52 +50,218 @@ irt_coefs <- function(irt_pars) {
 }
 
 
+#' Perform IRT Scale Transformation using Moment Methods
+#'
+#' @description
+#' Estimates scale transformation constants A (slope) and B (intercept) using
+#' either the mean/sigma or mean/mean method. These methods match moments of
+#' the item parameters of the common items.
+#'
+#' @details
+#' The function uses the `slope`/`intercept` parameterization internally. The
+#' classic `b` difficulty parameter is equivalent to `-intercept / slope`.
+#' \itemize{
+#'   \item **Mean/Sigma:** Matches the mean and standard deviation of the `b` parameters.
+#'   \item **Mean/Mean:** Matches the mean of the `b` parameters and the mean of the `a` (slope) parameters.
+#' }
+#'
+#' @param common_items_x A data frame of standardized IRT parameters (`slope`,
+#'   `intercept`, `guess`) for the common items from the new form (Form X).
+#' @param common_items_y A data frame of standardized IRT parameters for the
+#'   common items from the old form (Form Y).
+#' @param method Either `"mean_sigma"` or `"mean_mean"`.
+#'
+#' @return A list containing the estimated slope `A` and intercept `B`.
+#' @keywords internal
+scale_moment <- function(common_items_x, common_items_y, method = "mean_sigma") {
+  # Calculate classic 'b' parameter for moment matching
+  b_x <- -common_items_x$intercept / common_items_x$slope
+  b_y <- -common_items_y$intercept / common_items_y$slope
+
+  if (method == "mean_sigma") {
+    A <- sd(b_y) / sd(b_x)
+    B <- mean(b_y) - A * mean(b_x)
+  } else if (method == "mean_mean") {
+    A <- mean(common_items_x$slope) / mean(common_items_y$slope)
+    B <- mean(b_y) - A * mean(b_x)
+  } else {
+    cli::cli_abort("Unknown moment method: '{method}'. Choose 'mean_sigma' or 'mean_mean'.")
+  }
+
+  return(list(A = A, B = B))
+}
+
+
+#' Perform IRT Scale Transformation using Characteristic Curve Methods
+#'
+#' @description
+#' Estimates scale transformation constants A (slope) and B (intercept) using
+#' optimization to minimize the difference between item or test characteristic
+#' curves of the common items.
+#'
+#' @details
+#' This function uses `stats::optim()` to find the `A` and `B` constants that
+#' minimize a criterion function. The method determines the nature of this
+#' function:
+#' \itemize{
+#'   \item **stocking_lord:** Minimizes the sum of squared differences between the
+#'     **Test** Characteristic Curves (TCCs) of the common items.
+#'   \item **haebara:** Minimizes the sum of squared differences between all
+#'     **Item** Characteristic Curves (ICCs) of the common items.
+#' }
+#'
+#' @param common_items_x Standardized IRT parameters for common items on Form X.
+#' @param common_items_y Standardized IRT parameters for common items on Form Y.
+#' @param theta A numeric vector for the `theta` grid.
+#' @param method Either `"stocking_lord"` or `"haebara"`.
+#'
+#' @return A list containing the estimated slope `A` and intercept `B`.
+#' @keywords internal
+scale_curve <- function(common_items_x, common_items_y, theta, method = "stocking_lord") {
+  criterion_function <- function(params) {
+    A <- params[1]
+    B <- params[2]
+
+    transformed_x <- transform_irt_pars(common_items_x, A, B)
+
+    if (method == "stocking_lord") {
+      # TCC method: Compare the sum of the curves
+      tcc_y <- calculate_tcc(common_items_y, theta)
+      tcc_x_transformed <- calculate_tcc(transformed_x, theta)
+      error <- sum((tcc_y - tcc_x_transformed)^2)
+    } else if (method == "haebara") {
+      # ICC method: Compare each item's curve individually
+      icc_y <- calculate_icc(common_items_y, theta)
+      icc_x_transformed <- calculate_icc(transformed_x, theta)
+      error <- sum((icc_y - icc_x_transformed)^2)
+    } else {
+      cli::cli_abort("Unknown curve method: '{method}'. Choose 'stocking_lord' or 'haebara'.")
+    }
+    return(error)
+  }
+
+  initial_params <- c(1, 0)
+  opt_result <- stats::optim(par = initial_params, fn = criterion_function, method = "BFGS")
+
+  return(list(A = opt_result$par[1], B = opt_result$par[2]))
+}
+
+#' Apply Scale Transformation to IRT Parameters
+#'
+#' @description
+#' Transforms a set of IRT parameters from one scale to another using the
+#' provided A and B constants, based on the slope-intercept parameterization.
+#'
+#' @param irt_pars A data frame of standardized IRT parameters.
+#' @param A The slope of the transformation.
+#' @param B The intercept of the transformation.
+#'
+#' @return A data frame with the transformed parameters.
+#' @keywords internal
+transform_irt_pars <- function(irt_pars, A, B) {
+  transformed_pars <- irt_pars
+  # Transformation formulas for slope-intercept parameters
+  transformed_pars$slope <- irt_pars$slope / A
+  transformed_pars$intercept <- (irt_pars$intercept - (B * irt_pars$slope)) / A
+  return(transformed_pars)
+}
+
 
 #' IRT Equating Wrapper
 #'
 #' @description
-#' This function serves as a wrapper for different types of IRT equating,
-#' such as true score and observed score equating. It retrieves the necessary
-#' parameters from the `equate_recipe` object and calls the appropriate
-#' low-level IRT equating engine.
+#' This function is the main internal dispatcher for IRT equating. It determines
+#' the equating design, performs scale transformation if necessary (for CNEG),
+#' and then calls the appropriate equating engine (`true_score` or `observed_score`).
 #'
-#' @param forms A character vector of length two indicating the forms to be equated.
-#' @param design A character string for the equating design (e.g., "cg").
-#' @param type A character string specifying the IRT equating type
-#'   (e.g., "true_score").
-#' @param eq The `equate_recipe` object containing all forms and methods.
-#' @param title The unique title of the method being run, used to retrieve
-#'   the correct options from the `eq` object.
-#' @param ... Additional arguments, for forward compatibility.
+#' @inheritParams irt_true_score_equate
+#' @param design A character string for the equating design ("sg" or "cneg").
+#' @param type A character string specifying the IRT equating type.
+#' @param eq The `equate_recipe` object.
+#' @param title The unique title of the method being run.
 #'
 #' @keywords internal
-#'
 irt <- function(forms, design, type, eq, title, ...) {
-  # --- 1. Retrieve and Process IRT options from the recipe ---
   method_options <- eq@methods[[title]]$options
-
-  # Standardize the IRT parameters (from mirt object, etc.) into a data frame
-  all_irt_pars <- irt_coefs(method_options$irt_pars)
   theta <- method_options$theta
+  all_irt_pars <- irt_coefs(method_options$irt_pars) # Standardize
 
-  # --- 2. Select the correct item parameter sets for the forms ---
-  # This logic handles cases where irt_pars is a single data frame
-  # (for all items) or a list of data frames (one for each form).
-  if (is.data.frame(all_irt_pars)) {
-    # Set rownames to allow for subsetting by item ID
-    rownames(all_irt_pars) <- all_irt_pars$item
+  transformation_details <- NULL
 
-    # Subset the items belonging to each form
-    irt_pars_x <- all_irt_pars[eq@forms[[forms[1]]], ]
-    irt_pars_y <- all_irt_pars[eq@forms[[forms[2]]], ]
+  if (design == "cneg") {
+    if (!is.list(all_irt_pars) || is.data.frame(all_irt_pars)) {
+      cli::cli_abort("For CNEG IRT, 'irt_pars' must be a named list of parameter sets, one for each form.")
+    }
+    if (!all(forms %in% names(all_irt_pars))) {
+      cli::cli_abort("The names in the 'irt_pars' list must match the form names: '{forms[1]}' and '{forms[2]}'.")
+    }
 
-  } else if (is.list(all_irt_pars)) {
-    # Select the correct data frame from the list by form name
-    irt_pars_x <- all_irt_pars[[forms[1]]]
-    irt_pars_y <- all_irt_pars[[forms[2]]]
+    raw_pars_x <- all_irt_pars[[forms[1]]]
+    raw_pars_y <- all_irt_pars[[forms[2]]]
+
+    # common_items_map is now guaranteed to exist by the `equate` dispatcher
+    common_items_map <- method_options$common_items
+
+    common_x <- raw_pars_x[common_items_map[[forms[1]]], ]
+    common_y <- raw_pars_y[common_items_map[[forms[2]]], ]
+
+    scale_func <- if (method_options$transform_method %in% c("stocking_lord", "haebara")) {
+      scale_curve
+    } else {
+      scale_moment
+    }
+    trans_consts <- scale_func(common_x, common_y, theta, method = method_options$transform_method)
+
+    irt_pars_x <- transform_irt_pars(raw_pars_x, trans_consts$A, trans_consts$B)
+    irt_pars_y <- raw_pars_y
+
+    # --- Perform anchor test equating for diagnostics ---
+    if(method_options$anchor_type == "true_score"){
+      anchor_equating <- irt_true_score_equate(
+        irt_pars_x = transform_irt_pars(common_x, trans_consts$A, trans_consts$B),
+        irt_pars_y = common_y,
+        theta = theta,
+        eq = eq,
+        forms = forms,
+        min_score = 0,
+        max_score = nrow(common_x)
+      )
+    } else {
+      anchor_equating <- irt_observed_score_equate(
+        irt_pars_x = transform_irt_pars(common_x, trans_consts$A, trans_consts$B),
+        irt_pars_y = common_y,
+        theta = theta,
+        eq = eq,
+        forms = forms,
+        design = "cneg", # Use CNEG for anchor as well
+        method_options = method_options,
+        min_score = 0,
+        max_score = nrow(common_x)
+      )
+    }
+
+    transformation_details <- list(
+      common_items = common_items_map,
+      transform_method = method_options$transform_method,
+      A = trans_consts$A,
+      B = trans_consts$B,
+      anchor_test_equating = anchor_equating
+    )
+
+  } else {
+    if (is.data.frame(all_irt_pars)) {
+      rownames(all_irt_pars) <- all_irt_pars$item
+      irt_pars_x <- all_irt_pars[eq@forms[[forms[1]]], ]
+      irt_pars_y <- all_irt_pars[eq@forms[[forms[2]]], ]
+    } else if (is.list(all_irt_pars)) {
+      irt_pars_x <- all_irt_pars[[forms[1]]]
+      irt_pars_y <- all_irt_pars[[forms[2]]]
+    } else {
+      cli::cli_abort("Unsupported 'irt_pars' format for this design.")
+    }
   }
 
-  # --- 3. Dispatch to the correct IRT engine based on type ---
+
   if (type == "true_score") {
     equating_result <- irt_true_score_equate(
       irt_pars_x = irt_pars_x,
@@ -106,45 +272,27 @@ irt <- function(forms, design, type, eq, title, ...) {
     )
     result_name <- "IRT True Score"
   } else if (type == "observed_score") {
-    # For observed score equating, retrieve and process the theta distribution
-    theta_dist_option <- method_options$theta_dist
-
-    if (is.character(theta_dist_option) && length(theta_dist_option) == 1) {
-      theta_dist <- switch(tolower(theta_dist_option),
-                           "normal" = dnorm(theta),
-                           "uniform" = rep(1, length(theta)),
-                           cli::cli_abort("Unknown 'theta_dist' string: '{theta_dist_option}'. Choose 'normal', 'uniform', or provide a numeric vector.")
-      )
-    } else if (is.numeric(theta_dist_option)) {
-      if (length(theta_dist_option) != length(theta)) {
-        cli::cli_abort("'theta_dist' vector must have the same length as the 'theta' grid.")
-      }
-      theta_dist <- theta_dist_option
-    } else {
-      cli::cli_abort("'theta_dist' must be a numeric vector or one of the strings 'normal' or 'uniform'.")
-    }
-
-    # Normalize the final distribution to ensure it sums to 1
-    theta_dist <- theta_dist / sum(theta_dist)
-
     equating_result <- irt_observed_score_equate(
       irt_pars_x = irt_pars_x,
       irt_pars_y = irt_pars_y,
       theta = theta,
-      theta_dist = theta_dist,
       eq = eq,
-      forms = forms
+      forms = forms,
+      design = design,
+      method_options = method_options
     )
     result_name <- "IRT Observed Score"
   } else {
     cli::cli_abort("Unknown IRT equating type: '{type}'.")
   }
 
-  # --- 4. Return results in a named list for consistency ---
+  # Add transformation details to diagnostics if they exist
+  if (!is.null(transformation_details)) {
+    equating_result$diagnostics$scale_transformation <- transformation_details
+  }
+
   return(stats::setNames(list(equating_result), result_name))
 }
-
-
 
 
 #' Perform IRT True Score Equating
@@ -155,24 +303,29 @@ irt <- function(forms, design, type, eq, title, ...) {
 #'
 #' @details
 #' This function first calculates the Test Characteristic Curve (TCC) for each
-#' form. It then creates a raw-score-to-raw-score conversion table by using
-#' linear interpolation. For each integer score on Form X, it finds the
-#' corresponding true score (TCC), and then finds the true score on Form Y that
-#' corresponds to the same theta level. Finally, it interpolates to find the
-#' non-integer raw score on Form Y that corresponds to that true score.
+#' form. For each integer score on Form X, it finds the corresponding true score,
+#' finds the theta level that produces that true score on Form X, and then finds
+#' the true score on Form Y at that same theta level. For scores outside the
+#' obtainable true score range, linear extrapolation is used.
 #'
-#' @param irt_pars_x A data frame of IRT item parameters for Form X.
+#' @param irt_pars_x A data frame of IRT item parameters for Form X (on the same scale as Y).
 #' @param irt_pars_y A data frame of IRT item parameters for Form Y.
 #' @param theta A numeric vector for the `theta` grid.
 #' @param eq The `equate_recipe` object.
 #' @param forms A character vector of the two forms being equated.
+#' @param min_score Optional. The minimum score for the score scale. If NULL,
+#'   it's derived from the `eq` object.
+#' @param max_score Optional. The maximum score for the score scale.
 #'
-#' @return A list with the standardized equating output structure.
+#' @return A list containing the equating table and diagnostic information. The
+#'   diagnostics include the `tcc_table`.
 #' @keywords internal
-irt_true_score_equate <- function(irt_pars_x, irt_pars_y, theta, eq, forms) {
+irt_true_score_equate <- function(irt_pars_x, irt_pars_y, theta, eq, forms, min_score = NULL, max_score = NULL) {
   # --- 1. Determine Score Range ---
-  min_score <- attr(eq@data[[forms[1]]], "min")
-  max_score <- attr(eq@data[[forms[1]]], "max")
+  if (is.null(min_score) || is.null(max_score)) {
+    min_score <- attr(eq@data[[forms[1]]], "min")
+    max_score <- attr(eq@data[[forms[1]]], "max")
+  }
   x_score <- min_score:max_score
 
   # --- 2. Calculate TCCs ---
@@ -181,19 +334,37 @@ irt_true_score_equate <- function(irt_pars_x, irt_pars_y, theta, eq, forms) {
   tcc_table <- data.frame(theta = theta, tcc_x = tcc_x, tcc_y = tcc_y)
 
   # --- 3. Create Raw-to-Raw Conversion Table ---
-  # Interpolate to find the equivalent score on Form Y for each integer score on X
-  equivalent_score <- stats::approx(x = tcc_x, y = tcc_y, xout = x_score, rule = 2)$y
+  theta_for_x <- stats::approx(x = tcc_x, y = theta, xout = x_score, rule = 2)$y
+  equivalent_true_score <- stats::approx(x = theta, y = tcc_y, xout = theta_for_x, rule = 2)$y
 
+  # --- 4. Extrapolate for Scores Outside True Score Range ---
+  lb_x <- sum(irt_pars_x$guess)
+  ub_x <- nrow(irt_pars_x)
+  lb_y <- sum(irt_pars_y$guess)
+  ub_y <- nrow(irt_pars_y)
 
-  # --- 4. Assemble Standardized Output ---
+  scores_below <- x_score < lb_x
+  scores_above <- x_score > ub_x
+
+  if (any(scores_below)) {
+    if (lb_x > 0) { # Avoid division by zero
+      equivalent_true_score[scores_below] <- lb_y / lb_x * x_score[scores_below]
+    } else {
+      equivalent_true_score[scores_below] <- lb_y
+    }
+  }
+  if (any(scores_above)) {
+    slope_above <- (ub_y - lb_y) / (ub_x - lb_x)
+    equivalent_true_score[scores_above] <- slope_above * (x_score[scores_above] - ub_x) + ub_y
+  }
+
+  # --- 5. Assemble Standardized Output ---
   result <- list(
     x_score = x_score,
-    equivalent_score = equivalent_score,
-    observed_scores_x = rowSums(eq@data[[forms[1]]][, -1]),
-    observed_scores_y = rowSums(eq@data[[forms[2]]][, -1]),
-    diagnostics = list(
-      tcc_table = tcc_table
-    )
+    equivalent_score = equivalent_true_score,
+    observed_scores_x = if (!is.null(eq@data[[forms[1]]])) rowSums(eq@data[[forms[1]]][, -1]) else NULL,
+    observed_scores_y = if (!is.null(eq@data[[forms[2]]])) rowSums(eq@data[[forms[2]]][, -1]) else NULL,
+    diagnostics = list(tcc_table = tcc_table)
   )
 
   return(result)
@@ -202,41 +373,61 @@ irt_true_score_equate <- function(irt_pars_x, irt_pars_y, theta, eq, forms) {
 #' Perform IRT Observed Score Equating
 #'
 #' @description
-#' This function performs IRT observed score equating using the method described
-#' by Lord (1965).
+#' Performs IRT observed score equating for SG and CNEG designs.
 #'
 #' @details
-#' The procedure derives the observed score distributions for each form from the
-#' IRT model and a population ability distribution. It then performs an
+#' This procedure derives the observed score distributions for each form from
+#' the IRT model and a population ability distribution. For the CNEG design, it
+#' creates a synthetic population based on the two groups. It then performs an
 #' equipercentile equating on these two model-based distributions.
 #'
-#' @param irt_pars_x A data frame of IRT item parameters for Form X.
-#' @param irt_pars_y A data frame of IRT item parameters for Form Y.
-#' @param theta A numeric vector for the `theta` grid.
-#' @param theta_dist A numeric vector of weights for the `theta` grid.
-#' @param eq The `equate_recipe` object.
-#' @param forms A character vector of the two forms being equated.
-#'
-#' @return A list with the standardized equating output structure.
+#' @inheritParams irt_true_score_equate
+#' @param design The equating design.
+#' @param method_options A list of options for the method.
 #' @keywords internal
-irt_observed_score_equate <- function(irt_pars_x, irt_pars_y, theta, theta_dist,
-                                      eq, forms) {
+irt_observed_score_equate <- function(irt_pars_x, irt_pars_y, theta, eq, forms, design, method_options, min_score = NULL, max_score = NULL) {
   # --- 1. Determine Score Range ---
-  min_score <- attr(eq@data[[forms[1]]], "min")
-  max_score <- attr(eq@data[[forms[1]]], "max")
+  if (is.null(min_score) || is.null(max_score)) {
+    min_score <- attr(eq@data[[forms[1]]], "min")
+    max_score <- attr(eq@data[[forms[1]]], "max")
+  }
   x_score <- min_score:max_score
 
-  # --- 2. Calculate Conditional PMFs ---
-  cond_pmf_x_matrix <- sapply(theta, function(th) {
-    lord_wingersky_recursion(irt_pars = irt_pars_x, theta_point = th)
-  })
-  cond_pmf_y_matrix <- sapply(theta, function(th) {
-    lord_wingersky_recursion(irt_pars = irt_pars_y, theta_point = th)
-  })
+  if (design == "cneg") {
+    theta_dist_list <- method_options$theta_dist
+    if (!is.list(theta_dist_list) || is.data.frame(theta_dist_list) || !all(forms %in% names(theta_dist_list))) {
+      cli::cli_abort("For CNEG observed score IRT, 'theta_dist' must be a named list of distributions, one for each form.")
+    }
+    theta_dist_x_raw <- theta_dist_list[[forms[1]]] %||% "normal"
+    theta_dist_y_raw <- theta_dist_list[[forms[2]]] %||% "normal"
+    w1 <- method_options$w1
 
-  # --- 3. Integrate to get Marginal PMFs ---
-  marginal_pmf_x <- as.vector(cond_pmf_x_matrix %*% theta_dist)
-  marginal_pmf_y <- as.vector(cond_pmf_y_matrix %*% theta_dist)
+    theta_dist_x <- get_theta_dist(theta_dist_x_raw, theta)
+    theta_dist_y <- get_theta_dist(theta_dist_y_raw, theta)
+
+    cond_pmf_x_x <- sapply(theta, function(th) lord_wingersky_recursion(irt_pars_x, th))
+    cond_pmf_y_y <- sapply(theta, function(th) lord_wingersky_recursion(irt_pars_y, th))
+
+    f1x <- as.vector(cond_pmf_x_x %*% theta_dist_x)
+    g2y <- as.vector(cond_pmf_y_y %*% theta_dist_y)
+
+    f2x <- as.vector(cond_pmf_x_x %*% theta_dist_y)
+    g1y <- as.vector(cond_pmf_y_y %*% theta_dist_x)
+
+    marginal_pmf_x <- w1 * f1x + (1 - w1) * f2x
+    marginal_pmf_y <- w1 * g1y + (1 - w1) * g2y
+
+  } else { # Single Group Design
+    theta_dist_raw <- method_options$theta_dist
+    theta_dist <- get_theta_dist(theta_dist_raw, theta)
+
+    cond_pmf_x <- sapply(theta, function(th) lord_wingersky_recursion(irt_pars_x, th))
+    cond_pmf_y <- sapply(theta, function(th) lord_wingersky_recursion(irt_pars_y, th))
+
+    marginal_pmf_x <- as.vector(cond_pmf_x %*% theta_dist)
+    marginal_pmf_y <- as.vector(cond_pmf_y %*% theta_dist)
+  }
+
   score_distributions <- data.frame(
     observed_score = x_score,
     pmf_x = marginal_pmf_x,
@@ -244,25 +435,42 @@ irt_observed_score_equate <- function(irt_pars_x, irt_pars_y, theta, theta_dist,
   )
   names(score_distributions)[2:3] <- forms
 
-
-  # --- 4. Perform Equipercentile Equating ---
   cum_pmf_x <- cumsum(marginal_pmf_x)
   cum_pmf_y <- cumsum(marginal_pmf_y)
 
   equivalent_score <- stats::spline(x = cum_pmf_y, y = x_score, xout = cum_pmf_x, method = "natural")$y
 
-  # --- 5. Assemble Standardized Output ---
   result <- list(
     x_score = x_score,
     equivalent_score = equivalent_score,
-    observed_scores_x = rowSums(eq@data[[forms[1]]][, -1]),
-    observed_scores_y = rowSums(eq@data[[forms[2]]][, -1]),
+    observed_scores_x = if (!is.null(eq@data[[forms[1]]])) rowSums(eq@data[[forms[1]]][, -1]) else NULL,
+    observed_scores_y = if (!is.null(eq@data[[forms[2]]])) rowSums(eq@data[[forms[2]]][, -1]) else NULL,
     diagnostics = list(
       score_distributions = score_distributions
     )
   )
 
   return(result)
+}
+
+#' Helper to get theta distribution vector
+#' @keywords internal
+get_theta_dist <- function(theta_dist_option, theta) {
+  if (is.character(theta_dist_option) && length(theta_dist_option) == 1) {
+    dist <- switch(tolower(theta_dist_option),
+                   "normal" = dnorm(theta),
+                   "uniform" = rep(1, length(theta)),
+                   cli::cli_abort("Unknown 'theta_dist' string: '{theta_dist_option}'.")
+    )
+  } else if (is.numeric(theta_dist_option)) {
+    if (length(theta_dist_option) != length(theta)) {
+      cli::cli_abort("'theta_dist' vector must have the same length as the 'theta' grid.")
+    }
+    dist <- theta_dist_option
+  } else {
+    cli::cli_abort("'theta_dist' must be a numeric vector or a string.")
+  }
+  return(dist / sum(dist))
 }
 
 
@@ -278,12 +486,27 @@ irt_observed_score_equate <- function(irt_pars_x, irt_pars_y, theta, theta_dist,
 #' @return A numeric vector of expected true scores, one for each theta value.
 #' @keywords internal
 calculate_tcc <- function(irt_pars, theta) {
-  # Vectorized calculation of the TCC
+  icc_matrix <- calculate_icc(irt_pars, theta)
+  tcc <- colSums(icc_matrix)
+  return(tcc)
+}
+
+#' Calculate Item Characteristic Curves (ICCs)
+#'
+#' @description
+#' A helper function to compute the ICCs from a set of dichotomous item
+#' parameters for a given set of ability values.
+#'
+#' @param irt_pars A data frame of item parameters (`slope`, `intercept`, `guess`).
+#' @param theta A numeric vector of ability values.
+#'
+#' @return A matrix of probabilities, with items in rows and theta points in columns.
+#' @keywords internal
+calculate_icc <- function(irt_pars, theta) {
   linear_predictor <- outer(irt_pars$slope, theta, "*") + irt_pars$intercept
   prob_matrix <- 1 / (1 + exp(-linear_predictor))
   icc_matrix <- irt_pars$guess + (1 - irt_pars$guess) * prob_matrix
-  tcc <- colSums(icc_matrix)
-  return(tcc)
+  return(icc_matrix)
 }
 
 
@@ -304,18 +527,13 @@ calculate_tcc <- function(irt_pars, theta) {
 #'   obtaining a total score of `k-1`.
 #' @keywords internal
 lord_wingersky_recursion <- function(irt_pars, theta_point) {
-  # Calculate p-values (prob of correct response) for ALL items at the single theta point
   p_values <- irt_pars$guess + (1 - irt_pars$guess) / (1 + exp(-(irt_pars$slope * theta_point + irt_pars$intercept)))
   q_values <- 1 - p_values
-
-  # Lord-Wingersky recursion
   num_items <- nrow(irt_pars)
-  # P[k] will store the probability of getting a score of k-1
   P <- numeric(num_items + 1)
-  P[1] <- 1.0 # Prob of score 0 after 0 items is 1
+  P[1] <- 1.0
 
   for (i in 1:num_items) {
-    # Loop backwards from the current max possible score down to 0
     for (k in (i + 1):1) {
       prob_score_k_minus_1_prev <- if (k > 1) P[k - 1] else 0
       P[k] <- P[k] * q_values[i] + prob_score_k_minus_1_prev * p_values[i]
