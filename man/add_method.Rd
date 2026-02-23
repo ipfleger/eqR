@@ -10,7 +10,7 @@ add_method(equate_recipe, method, type = "default", smooth = "none", ...)
 \item{equate_recipe}{An object of class `equate_recipe`.}
 
 \item{method}{A character string specifying the primary equating method.
-Can be `"linear"`, `"equipercentile"`, or `"irt"`.}
+Can be `"linear"`, `"equipercentile"`, `"irt"`, or `"identity"`.}
 
 \item{type}{A character string specifying the calculation type or sub-method,
 which is particularly relevant for the common-item nonequivalent groups
@@ -35,6 +35,12 @@ methods to a single recipe, and they will all be executed by `run_equating()`.
 
 The `type` argument selects a specific statistical procedure. Its valid values
 depend on the `method` and the `design` set in the recipe.
+
+\strong{`method = "identity"`}
+\itemize{
+  \item A baseline "equating" where the equated score is simply the original score.
+  The `type` and `smooth` arguments are ignored.
+}
 
 \strong{`method = "linear"`}
 \itemize{
@@ -102,9 +108,21 @@ Optional parameters for both smoothing and equating methods can be passed via `.
 
 \strong{IRT Method Options}
 \itemize{
-  \item \code{irt_pars}: A `mirt` model object, or a list of them, containing IRT item parameters. This is a **required** argument.
+  \item \code{irt_pars}: This is a **required** argument.
+    \itemize{
+      \item For SG, RG, or concurrently calibrated CG designs, this should be a single `mirt` model object or a data frame containing parameters for all items.
+      \item For the CNEG design with separately calibrated forms, this must be a **named list** of `mirt` objects or data frames, where the names match the form names in the recipe (e.g., `list(formX = pars_x, formY = pars_y)`).
+    }
+  \item \code{common_items}: For the CNEG design, a two-column data frame mapping the item identifiers for the common items. The column names must match the form names (e.g., `data.frame(formX = c("i1", "i3"), formY = c("i2", "i5"))`). If not provided, the function will default to using items with identical names on both forms.
+  \item \code{transform_method}: For CNEG design, the method used to link the two ability scales. Can be `"stocking_lord"`, `"haebara"`, `"mean_sigma"`, or `"mean_mean"`. *Default: \code{"stocking_lord"}*.
+  \item \code{anchor_type}: For the CNEG design, the equating type to use for the diagnostic equating of the anchor test. If not specified, this will default to the main `type` (e.g., `"true_score"` or `"observed_score"`).
   \item \code{theta}: A numeric vector defining the grid for the latent ability scale. *Default: \code{seq(-4, 4, length.out = 100)}*.
-  \item \code{theta_dist}: For observed score equating, a numeric vector or character string (`"normal"` or `"uniform"`) defining the population ability distribution. *Default: \code{"normal"}*.
+  \item \code{theta_dist}: For observed score equating.
+    \itemize{
+      \item For SG/RG designs, a character string (`"normal"` or `"uniform"`) or a numeric vector defining the single population ability distribution. *Default: \code{"normal"}*.
+      \item For CNEG design, this must be a **named list** where names match the form names and values are the distributions for each group (e.g., `list(formX = "normal", formY = "normal")`).
+    }
+  \item \code{w1}: For CNEG observed score equating, the weight given to the new group (Form X) in the synthetic population. *Default: \code{0.5}*.
   \item \code{bootstrap}: Should parametric bootstrap standard errors be calculated? Logical. *Default: \code{FALSE}*. Requires a `mirt` model object for `irt_pars`.
   \item \code{boot_reps}: The number of bootstrap replications. Integer. *Default: \code{100}* for IRT, \code{1000} otherwise.
 }
@@ -115,7 +133,7 @@ Optional parameters for both smoothing and equating methods can be passed via `.
 recipe <- init_equating() |> add_design("common-item")
 # Add a linear method that runs both Tucker and Chained equating
 recipe <- recipe |> add_method("linear", type = c("tucker", "chained"))
-# Add a mean equating method (slope fixed to 1)
-recipe <- recipe |> add_method("linear", type = "tucker", mean_only = TRUE)
+# Add an identity equating as a baseline
+recipe <- recipe |> add_method("identity")
 }
 }
