@@ -43,29 +43,52 @@ init_equating <- function() {
 #' @export
 add_form <- function(equate_recipe, crosstabs, name, id_cols = NULL, min_score = NULL, max_score = NULL, inc = NULL, rel = NULL) {
 
-  data_cols <- !colnames(crosstabs) %in% id_cols
-  form_data <- crosstabs[, data_cols]
+  # 1. Handle Data/ID splitting explicitly
+  if (is.null(id_cols)) {
+    # No IDs provided: All columns are data
+    form_data <- crosstabs
 
-  # Get the score scale attributes
-  attrs <- get_form_attributes(form_data, form_name = name, min_score = min_score, max_score = max_score, inc = inc, rel = rel)
+    # Generate synthetic IDs (using base R or tibble style)
+    # This replaces your 'crosstabs[,FALSE] |> rowid_to_column()' logic
+    form_ids <- data.frame(rowid = seq_len(nrow(crosstabs)))
+  } else {
+    # IDs provided: Split the data frame
+    is_id_col <- colnames(crosstabs) %in% id_cols
 
-  # Safely attach the attributes to the data frame
-  attr(form_data, "min") <- attrs$min
-  attr(form_data, "max") <- attrs$max
-  attr(form_data, "inc") <- attrs$inc
-  attr(form_data, "range") <- attrs$range
+    # Use drop = FALSE to ensure they remain data frames even if only 1 col exists
+    form_data <- crosstabs[, !is_id_col, drop = FALSE]
+    form_ids  <- crosstabs[, is_id_col,  drop = FALSE]
+  }
+
+  # 2. Get attributes (same as before)
+  attrs <- get_form_attributes(
+    form_data,
+    form_name = name,
+    min_score = min_score,
+    max_score = max_score,
+    inc = inc,
+    rel = rel
+  )
+
+  # 3. Attach attributes safely
+  # (Note: Using a list and setting attributes in a loop is often cleaner
+  # than repeating lines, but this works fine)
+  attr(form_data, "min")    <- attrs$min
+  attr(form_data, "max")    <- attrs$max
+  attr(form_data, "inc")    <- attrs$inc
+  attr(form_data, "range")  <- attrs$range
   attr(form_data, "points") <- attrs$points
-  attr(form_data, "n") <- attrs$n
-  attr(form_data, "k") <- attrs$k
-  attr(form_data, "rel") <- attrs$rel
+  attr(form_data, "n")      <- attrs$n
+  attr(form_data, "k")      <- attrs$k
+  attr(form_data, "rel")    <- attrs$rel
 
-  equate_recipe@forms[[name]] <- colnames(form_data)
-  equate_recipe@data[[name]] <- form_data
-  equate_recipe@data_ids[[name]] <- crosstabs[, !data_cols]
+  # 4. Update the S4 object
+  equate_recipe@forms[[name]]    <- colnames(form_data)
+  equate_recipe@data[[name]]     <- form_data
+  equate_recipe@data_ids[[name]] <- form_ids
 
   equate_recipe
 }
-
 
 #' Add or replace an equating plan
 #'
@@ -138,7 +161,7 @@ add_plan <- function(equate_recipe, ...) {
       if (length(to_form) != 1) {
         cli::cli_abort("Each formula must have exactly one reference form on the left-hand side.")
       }
-
+      # expand.grid(from = from_forms, to = to_form)
       data.frame(
         from = from_forms,
         to = to_form,

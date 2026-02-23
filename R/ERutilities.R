@@ -215,33 +215,44 @@ perc_rank <- function(x, min, max, inc, crfd) {
 #' # Find scores for multiple percentile ranks
 #' perc_point(pr = c(25, 50, 75), ns = 11, min = 0, inc = 1, crfd = cum_rel_freqs)
 #' }
+#' Compute Percentile Point (Score) from a Percentile Rank
 perc_point <- function(pr, ns, min, inc, crfd) {
 
-  # Vectorized implementation
   sapply(pr, function(single_pr) {
     prp <- single_pr / 100
 
-    # Handle edge cases
+    # Handle floating point near 0
     if (prp <= 1e-8) {
       i <- which(crfd > 1e-8)[1]
-      ppU <- i - 1 - 0.5 # C uses 0-based index, so i-1
+      # Handle case where distribution starts with 0s
+      if (is.na(i)) i <- 1
+      ppU <- i - 1 - 0.5
       ppL <- -0.5
       return(min + inc * ((ppU + ppL) / 2))
     }
 
+    # Handle floating point near 1
     if (prp >= 1 - 1e-8) {
       j <- tail(which(crfd < 1 - 1e-8), 1)
-      ppL <- j - 1 + 1 + 0.5 # C uses 0-based index, so j-1
+      if (length(j) == 0) j <- ns # Fallback if all are 1
+      ppL <- j - 1 + 1 + 0.5
       ppU <- ns - 1 + 0.5
       return(min + inc * ((ppU + ppL) / 2))
     }
 
-    if (crfd[1] > prp) {
+    # FIX: Change > to >= to handle case where prp == crfd[1]
+    # This prevents the 'ppL' calculation below from seeing an empty 'j'
+    if (crfd[1] >= prp) {
       return(min + inc * (prp / crfd[1] - 0.5))
     }
 
     # Upper percentile point (ppU)
+    # Because of the check above, we know crfd[1] < prp, so i is at least 2.
     i <- which(crfd > prp)[1]
+
+    # Safety check if i is NA (should not happen given previous checks)
+    if (is.na(i)) i <- ns
+
     if (crfd[i] != crfd[i - 1]) {
       ppU <- (prp - crfd[i - 1]) / (crfd[i] - crfd[i - 1]) + (i - 1 - 0.5)
     } else {
@@ -249,7 +260,9 @@ perc_point <- function(pr, ns, min, inc, crfd) {
     }
 
     # Lower percentile point (ppL)
+    # Because of the check above, we know crfd[1] < prp, so j is at least 1.
     j <- tail(which(crfd < prp), 1)
+
     if (crfd[j + 1] != crfd[j]) {
       ppL <- (prp - crfd[j]) / (crfd[j + 1] - crfd[j]) + (j - 1 + 0.5)
     } else {

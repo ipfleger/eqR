@@ -56,7 +56,23 @@ linear_equate_observed_ci <- function(mnx1, sdx1, mnv1, sdv1, mny2, sdy2, mnv2, 
 #'
 #' @return A list containing a `summary` data frame with coefficients for each
 #'   method run, and an `equated_scores` data frame with the equated scores.
-linear_equate_ci <- function(mnx1, sdx1, mnv1, sdv1, covxv1, mny2, sdy2, mnv2, sdv2, covyv2, w1, anchor = FALSE, mean_only = FALSE, type = "all", min_x, max_x, inc_x) {
+linear_equate_ci <- function(mnx1,
+                             sdx1,
+                             mnv1,
+                             sdv1,
+                             covxv1,
+                             mny2,
+                             sdy2,
+                             mnv2,
+                             sdv2,
+                             covyv2,
+                             w1,
+                             anchor = FALSE,
+                             mean_only = FALSE,
+                             type = "all",
+                             min_x,
+                             max_x,
+                             inc_x) {
 
   # if (w1 < 0) {
   #   if (is.null(n1) || is.null(n2)) {
@@ -87,6 +103,15 @@ linear_equate_ci <- function(mnx1, sdx1, mnv1, sdv1, covxv1, mny2, sdy2, mnv2, s
     equated_scores_list$Tucker <- res_tuck$a * raw_scores_x + res_tuck$b
   }
 
+  # --- Chained Linear Method ---
+  if ("chained" %in% methods_to_run) {
+    gamma1_chain <- sdx1 / sdv1
+    gamma2_chain <- sdy2 / sdv2
+    res_chain <- linear_equate_observed_ci(mnx1, sdx1, mnv1, sdv1, mny2, sdy2, mnv2, sdv2, w1, mean_only, gamma1_chain, gamma2_chain)
+    results_list$Chained <- list(a = res_chain$a, b = res_chain$b)
+    equated_scores_list$Chained <- res_chain$a * raw_scores_x + res_chain$b
+  }
+
   # --- Levine Observed/True Score Method ---
   # These are linked because they share gamma calculations
   if (any(c("levine_observed", "levine_true") %in% methods_to_run)) {
@@ -112,14 +137,6 @@ linear_equate_ci <- function(mnx1, sdx1, mnv1, sdv1, covxv1, mny2, sdy2, mnv2, s
     }
   }
 
-  # --- Chained Linear Method ---
-  if ("chained" %in% methods_to_run) {
-    gamma1_chain <- sdx1 / sdv1
-    gamma2_chain <- sdy2 / sdv2
-    res_chain <- linear_equate_observed_ci(mnx1, sdx1, mnv1, sdv1, mny2, sdy2, mnv2, sdv2, w1, mean_only, gamma1_chain, gamma2_chain)
-    results_list$Chained <- list(a = res_chain$a, b = res_chain$b)
-    equated_scores_list$Chained <- res_chain$a * raw_scores_x + res_chain$b
-  }
 
   # --- Combine results ---
   summary_df <- do.call(rbind, lapply(names(results_list), function(name) {

@@ -7,24 +7,19 @@
 irt(forms, design, type, eq, title, ...)
 }
 \arguments{
-\item{forms}{A character vector of length two indicating the forms to be equated.}
+\item{forms}{A character vector of the two forms being equated.}
 
-\item{design}{A character string for the equating design (e.g., "cg").}
+\item{design}{A character string for the equating design ("sg" or "cneg").}
 
-\item{type}{A character string specifying the IRT equating type
-(e.g., "true_score").}
+\item{type}{A character string specifying the IRT equating type.}
 
-\item{eq}{The `equate_recipe` object containing all forms and methods.}
+\item{eq}{The `equate_recipe` object.}
 
-\item{title}{The unique title of the method being run, used to retrieve
-the correct options from the `eq` object.}
-
-\item{...}{Additional arguments, for forward compatibility.}
+\item{title}{The unique title of the method being run.}
 }
 \description{
-This function serves as a wrapper for different types of IRT equating,
-such as true score and observed score equating. It retrieves the necessary
-parameters from the `equate_recipe` object and calls the appropriate
-low-level IRT equating engine.
+This function is the main internal dispatcher for IRT equating. It determines
+the equating design, performs scale transformation if necessary (for CNEG),
+and then calls the appropriate equating engine (`true_score` or `observed_score`).
 }
 \keyword{internal}

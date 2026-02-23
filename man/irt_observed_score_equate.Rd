@@ -8,72 +8,41 @@ irt_observed_score_equate(
   irt_pars_x,
   irt_pars_y,
   theta,
-  theta_dist,
+  eq,
+  forms,
+  design,
+  method_options,
   min_score = NULL,
-  max_score = NULL,
-  eq = NULL,
-  forms = NULL
+  max_score = NULL
 )
 }
 \arguments{
-\item{irt_pars_x}{A data frame of IRT item parameters for Form X. Must
-contain columns `slope`, `intercept`, and `guess`.}
+\item{irt_pars_x}{A data frame of IRT item parameters for Form X (on the same scale as Y).}
 
-\item{irt_pars_y}{A data frame of IRT item parameters for Form Y, with the
-same structure as `irt_pars_x`.}
+\item{irt_pars_y}{A data frame of IRT item parameters for Form Y.}
 
-\item{theta}{A numeric vector representing the grid of ability (`theta`)
-values for numerical integration.}
+\item{theta}{A numeric vector for the `theta` grid.}
 
-\item{theta_dist}{A numeric vector of weights (probability densities)
-corresponding to the `theta` grid, which defines the shape of the
-population's ability distribution. Must sum to 1.}
+\item{eq}{The `equate_recipe` object.}
 
-\item{min_score}{(Optional) The minimum possible score on the test forms. If
-`NULL` (the default), `eq` and `forms` must be provided.}
+\item{forms}{A character vector of the two forms being equated.}
 
-\item{max_score}{(Optional) The maximum possible score on the test forms. If
-`NULL` (the default), `eq` and `forms` must be provided.}
+\item{design}{The equating design.}
 
-\item{eq}{(Optional) The `equate_recipe` object. Only required if `min_score`
-or `max_score` are not specified.}
+\item{method_options}{A list of options for the method.}
 
-\item{forms}{(Optional) A character vector of length two indicating the forms.
-Only required if `min_score` or `max_score` are not specified.}
-}
-\value{
-A list containing two elements:
-  \item{conversion_table}{A data frame with the final score conversion from
-    Form X to Form Y, based on the equipercentile equating of the modeled
-    observed score distributions.}
-  \item{score_distributions}{A data frame serving as a diagnostic tool, which
-    shows the modeled probability mass function (PMF) for each form. It
-    contains a column for the `observed_score` and two columns with the
-    probabilities for each form, named after the forms themselves.}
+\item{min_score}{Optional. The minimum score for the score scale. If NULL,
+it's derived from the `eq` object.}
+
+\item{max_score}{Optional. The maximum score for the score scale.}
 }
 \description{
-This function performs IRT observed score equating using the method described
-by Lord (1965). It links scores on two test forms by finding scores that have
-the same percentile rank in their respective model-based observed score
-distributions.
+Performs IRT observed score equating for SG and CNEG designs.
 }
 \details{
-The procedure follows a two-stage process:
-1.  **Derive Observed Score Distributions:** For each test form, the function
-    first calculates the conditional probability of achieving each possible raw
-    score at each point on the `theta` grid. This is done using the
-    Lord-Wingersky algorithm (`lord_wingersky_recursion`). These conditional
-    distributions are then integrated over the specified population ability
-    distribution (`theta_dist`) to produce the final, unconditional
-    observed score distribution (marginal probability mass function) for each
-    form.
-2.  **Equipercentile Equating:** A standard equipercentile equating is then
-    performed on these two model-based observed score distributions to create
-    the final conversion table.
-
-This method is computationally intensive but is considered a very robust IRT
-equating technique. It is conceptually similar to traditional equipercentile
-equating but uses score distributions derived from the IRT model rather than
-from empirical sample data.
+This procedure derives the observed score distributions for each form from
+the IRT model and a population ability distribution. For the CNEG design, it
+creates a synthetic population based on the two groups. It then performs an
+equipercentile equating on these two model-based distributions.
 }
 \keyword{internal}

@@ -17,3 +17,4 @@ A data frame or a list of data frames with standardized item parameters.
 A helper function to extract and standardize IRT item parameters from various
 sources into a consistent data frame format (`slope`, `intercept`, `guess`).
 }
+\keyword{internal}

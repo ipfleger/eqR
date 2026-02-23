@@ -7,39 +7,42 @@
 irt_true_score_equate(
   irt_pars_x,
   irt_pars_y,
-  theta = seq(-4, 4, length.out = 100)
+  theta,
+  eq,
+  forms,
+  min_score = NULL,
+  max_score = NULL
 )
 }
 \arguments{
-\item{irt_pars_x}{A data frame of IRT item parameters for Form X. Must
-contain columns `slope`, `intercept`, and `guess`. This is typically the
-output of the `irt_coefs()` function.}
+\item{irt_pars_x}{A data frame of IRT item parameters for Form X (on the same scale as Y).}
 
-\item{irt_pars_y}{A data frame of IRT item parameters for Form Y, with the
-same structure as `irt_pars_x`.}
+\item{irt_pars_y}{A data frame of IRT item parameters for Form Y.}
 
-\item{theta}{A numeric vector representing the grid of ability (`theta`)
-values to be used for the equating. Defaults to `seq(-4, 4, length.out = 100)`.}
+\item{theta}{A numeric vector for the `theta` grid.}
+
+\item{eq}{The `equate_recipe` object.}
+
+\item{forms}{A character vector of the two forms being equated.}
+
+\item{min_score}{Optional. The minimum score for the score scale. If NULL,
+it's derived from the `eq` object.}
+
+\item{max_score}{Optional. The maximum score for the score scale.}
 }
 \value{
-A data frame containing the equating conversion table. It will have
-  columns for the `theta` grid, the true scores on Form X (`tcc_x`), and the
-  corresponding equated true scores on Form Y (`tcc_y`).
+A list containing the equating table and diagnostic information. The
+  diagnostics include the `tcc_table`.
 }
 \description{
 This function performs IRT true score equating, which links scores on two
-test forms based on a common underlying ability (`theta`) scale. The Test
-Characteristic Curve (TCC) for each form is calculated, and scores are
-considered equivalent if they correspond to the same theta level.
+test forms based on a common underlying ability (`theta`) scale.
 }
 \details{
-The function first calculates the expected true score for each form across a
-specified grid of theta values using the provided item parameters. This is
-done by summing the item characteristic curves (ICCs) for all items in a
-form, resulting in the TCC. The equating relationship is then established by
-mapping the true scores from Form X to the true scores on Form Y that
-correspond to the same theta value. This method assumes that examinees with
-the same latent ability should have the same true score, regardless of the
-test form they took.
+This function first calculates the Test Characteristic Curve (TCC) for each
+form. For each integer score on Form X, it finds the corresponding true score,
+finds the theta level that produces that true score on Form X, and then finds
+the true score on Form Y at that same theta level. For scores outside the
+obtainable true score range, linear extrapolation is used.
 }
 \keyword{internal}

@@ -24,17 +24,41 @@
 #'
 #' @return The numeric value of Lord's k.
 #' @author B. A. Hanson (Original C code), Google's Gemini (R translation)
+
+#' Calculate Lord's k
+#'
+#' @description
+#' Calculates the value of Lord's k. Returns 0 if reliability is <= 0,
+#' or if the calculated k is negative (which implies the model assumptions
+#' are not met for the given data).
+#'
+#' @export
 calc_lord_k <- function(kr20, n_items, rmoment) {
+  # 1. Immediate constraint check
+  if (kr20 <= 0) return(0)
+
   dn <- as.double(n_items)
+
+  # 2. Calculate terms
   mnm <- rmoment[1] * (dn - rmoment[1])
   varr <- rmoment[2]^2
 
+  # Calculate variance of item difficulties (varp)
   varp <- mnm / (dn^2)
   varp <- varp - (varr / dn) * (1.0 - ((dn - 1.0) / dn) * kr20)
 
-  k <- mnm - varr - dn * varp
-  if (k == 0) return(0) # Avoid division by zero
-  k <- (dn * dn * (dn - 1.0) * varp) / (2.0 * k)
+  # 3. Calculate denominator
+  denom <- mnm - varr - dn * varp
+
+  # Avoid division by zero
+  if (abs(denom) < 1e-9) return(0)
+
+  # 4. Final Calculation
+  k <- (dn * dn * (dn - 1.0) * varp) / (2.0 * denom)
+
+  # 5. Enforce non-negative constraint (Logic from Smooth_BB in C)
+  if (is.na(k) || k < 0) return(0)
+
   return(k)
 }
 
@@ -358,60 +382,115 @@ p_chi_sqr <- function(raw_counts, fit_counts) {
   return(sum((raw_counts - fit_counts)^2 / fit_counts))
 }
 
+
 #' Perform Beta-Binomial Smoothing
 #'
 #' @description
-#' This is the main wrapper function that orchestrates the entire beta-binomial
-#' smoothing process. It estimates true score moments, fits a beta distribution
-#' to those moments, and then calculates the smoothed observed score distribution.
+#' The main wrapper function for Beta-Binomial smoothing. It estimates true score
+#' moments, fits a beta distribution to those moments, and calculates the
+#' smoothed observed score distribution.
 #'
-#' @param n_persons The total number of examinees in the sample.
-#' @param n_items The number of items on the test.
-#' @param freq A numeric vector of the observed raw score frequencies.
-#' @param rmoment A numeric vector of the first four raw score moments.
-#' @param nparm The number of parameters for the beta distribution (2 or 4).
-#' @param rel The reliability of the test (e.g., KR-20), used to calculate
-#'   Lord's k for the compound binomial model. Set to 0 for the simple model.
+#' @details
+#' The function fits a Beta-Binomial distribution to the observed data. For the
+#' standard 2-parameter model, the probability of observing score \eqn{x} out of
+#' \eqn{n} items is given by:
 #'
-#' @return A list containing all results from the smoothing process, including
-#'   the smoothed density, beta parameters, fitted moments, and chi-square statistics.
-#' @author B. A. Hanson & R. L. Brennan (Original C code), Google's Gemini (R translation)
+#' \deqn{P(X=x) = {n \choose x} \frac{B(\alpha + x, \beta + n - x)}{B(\alpha, \beta)}}
+#'
+#' where \eqn{B(\cdot)} is the Beta function, and \eqn{\alpha} and \eqn{\beta} are
+#' the shape parameters estimated from the method of moments.
+#'
+#'
+#' The function also supports a 4-parameter Beta model (generalized Beta) and
+#' Lord's k correction for compound binomial errors (when `rel > 0`), which accounts
+#' for variations in item difficulty or inter-item correlation.
+#'
+#' @param n_persons Integer. The total number of examinees in the sample.
+#' @param n_items Integer. The number of items on the test.
+#' @param freq Numeric vector. The observed raw score frequencies.
+#' @param rmoment Numeric vector. The first four raw score moments (mean, variance, skewness, kurtosis).
+#' @param nparm Integer. The number of parameters for the beta distribution (2 or 4).
+#' @param rel Numeric. The reliability of the test (usually KR-20). Used to calculate Lord's k.
+#'
+#' @return A list containing:
+#' \itemize{
+#'   \item \code{density}: The smoothed probability density function.
+#'   \item \code{crfd}: The cumulative relative frequency distribution.
+#'   \item \code{prd}: The percentile rank distribution.
+#'   \item \code{beta_params}: The estimated Beta parameters (\eqn{\alpha, \beta, \text{lower}, \text{upper}}).
+#'   \item \code{fitted_moments}: Moments of the fitted distribution.
+#'   \item \code{true_moments}: Estimated true score moments.
+#'   \item \code{lr_chisq}: Likelihood ratio Chi-square statistic.
+#'   \item \code{p_chisq}: Pearson Chi-square statistic.
+#'   \item \code{lord_k}: The calculated Lord's k adjustment factor.
+#' }
+#'
+#' @references
+#' Hanson, B. A. (1991). Method of moments estimates for the four-parameter beta compound binomial model and the calculation of classification consistency estimates. (ACT Research Report 91-5).
+#' Lord, F. M. (1965). A strong true-score theory, with applications. Psychometrika, 30(3), 239-270.
+#'
+#' @export
 smooth_bb <- function(n_persons, n_items, freq, rmoment, nparm, rel) {
 
-  lord_k <- if (rel > 0) calc_lord_k(rel, n_items, rmoment) else 0
-  if (is.na(lord_k) || lord_k < 0) lord_k <- 0
+  # --- 1. Calculate Lord's k ---
+  # Only calculate k if we are using the 4-parameter model.
+  # If nparm=2, k is strictly 0.
+  if (nparm == 2) {
+    lord_k <- 0
+  } else {
+    lord_k <- calc_lord_k(rel, n_items, rmoment)
+  }
 
+  # 2. Get True Score Moments
   moments <- beta_moments(n_items, lord_k, rmoment)
   tmoment <- moments$tmoment
   nctmoment <- moments$nctmoment
 
+  # 3. Fit Beta Distribution
   params_fit <- calc_beta_params(n_items, tmoment, nctmoment, nparm)
   beta_params <- params_fit[1:4]
+  moments_fit_cnt <- params_fit["moments_fit"]
 
+  # 4. Generate Density (with Fallback)
   fitted_counts <- obs_density(n_items, n_persons, beta_params)
 
-  if (lord_k > 0) {
-    fitted_counts <- obs_den_k(n_items, lord_k, fitted_counts)
+  # Check for fit failure (NULL, NA, or error flag from params fitting)
+  fit_failed <- is.null(fitted_counts) || any(is.na(fitted_counts)) || moments_fit_cnt < 0
+
+  if (fit_failed) {
+    # Fallback: Uniform Distribution
+    smoothed_density <- rep(1 / (n_items + 1), n_items + 1)
+    fitted_counts <- smoothed_density * n_persons
+    moments_fit_cnt <- 0 # Indicate fallback
+  } else {
+    # Apply Lord's k correction if applicable
+    if (lord_k > 0) {
+      fitted_counts <- obs_den_k(n_items, lord_k, fitted_counts)
+    }
+
+    # Calculate density
+    smoothed_density <- fitted_counts / n_persons
   }
 
-  fitted_counts[fitted_counts < 0] <- 0
-
-  smoothed_density <- fitted_counts / sum(fitted_counts)
-
+  # 5. Calculate Statistics
   fitted_moments <- get_moments(scores = 0:n_items, rel_freq = smoothed_density)
-
   lr_chisq <- lr_chi_sqr(freq, fitted_counts)
   p_chisq <- p_chi_sqr(freq, fitted_counts)
 
+  # Derived distributions
+  crfd <- cumsum(smoothed_density)
+  prd <- perc_rank(x = 0:n_items, min = 0, max = n_items, inc = 1, crfd = crfd)
+
   return(list(
     density = smoothed_density,
-    crfd = cumsum(smoothed_density),
-    prd = perc_rank(x = 0:n_items, min = 0, max = n_items, inc = 1, crfd = cumsum(smoothed_density)),
+    crfd = crfd,
+    prd = prd,
     beta_params = beta_params,
     fitted_moments = fitted_moments,
     true_moments = tmoment,
     lr_chisq = lr_chisq,
     p_chisq = p_chisq,
-    moments_fit = params_fit["moments_fit"]
+    moments_fit = moments_fit_cnt,
+    lord_k = lord_k
   ))
 }

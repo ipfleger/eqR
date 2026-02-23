@@ -19,15 +19,15 @@ linear_sgrg <- function(eq, forms, title){
   boot_type <- method_options$boot_type
   boot_replications = method_options$boot_reps
 
-  dat <- data.frame(do.call(cbind, lapply(forms |> `names<-`(forms), \(frm){
-    rowSums(eq@data[[frm]][eq@forms[[frm]]], na.rm = TRUE)
-  })))
+  dat <- lapply(forms |> `names<-`(forms), \(frm){
+    data.frame(form = frm, score = rowSums(eq@data[[frm]][eq@forms[[frm]]], na.rm = TRUE))
+  }) |> dplyr::bind_rows()
 
 
   if (boot_replications <= 1) {
     point_estimates <- unlist(linear_equate_rgsg(
-      mnx = mean(dat[,1]), sdx = sd(dat[,1]),
-      mny = mean(dat[,2]), sdy = sd(dat[,2]),
+      mnx = mean(dat$score[dat$form==forms[1]]), sdx = sd(dat$score[dat$form==forms[1]]),
+      mny = mean(dat$score[dat$form==forms[2]]), sdy = sd(dat$score[dat$form==forms[2]]),
       mean_only = mean_only,
       min_x = attr(eq@data[[forms[1]]], "min"), max_x = attr(eq@data[[forms[1]]], "max"), inc_x = attr(eq@data[[forms[1]]], "inc")
     ))
@@ -52,8 +52,8 @@ linear_sgrg <- function(eq, forms, title){
   } else {
     linear_boot_fun <- function(data, i) {
       unlist(linear_equate_rgsg(
-        mnx = mean(data[i,1]), sdx = sd(data[i,1]),
-        mny = mean(data[i,2]), sdy = sd(data[i,2]),
+        mnx = mean(data[i,"score"][data[i, "form"]==forms[1]]), sdx = sd(data[i,"score"][data[i, "form"]==forms[1]]),
+        mny = mean(data[i,"score"][data[i, "form"]==forms[2]]), sdy = sd(data[i,"score"][data[i, "form"]==forms[2]]),
         mean_only = mean_only,
         min_x = attr(eq@data[[forms[1]]], "min"), max_x = attr(eq@data[[forms[1]]], "max"), inc_x = attr(eq@data[[forms[1]]], "inc")
       ))
@@ -170,9 +170,9 @@ linear_cg <- function(eq, forms, anchors, title){
 
   score_scale <- list(min_x = attr(eq@data[[forms[1]]], "min"), max_x = attr(eq@data[[forms[1]]], "max"), inc_x = attr(eq@data[[forms[1]]], "inc"))
 
-  dat <- data.frame(do.call(cbind, lapply(forms |> `names<-`(forms), \(frm){
+  dat <- lapply(forms |> `names<-`(forms), \(frm){
     rowSums(eq@data[[frm]][eq@forms[[frm]]], na.rm = TRUE)
-  })))
+  })
   nrows <- unlist(lapply(eq@data[forms], nrow))
 
   # Pre-run to get the structure (method names, number of scores)
@@ -244,14 +244,33 @@ linear_cg <- function(eq, forms, anchors, title){
 }
 
 linear_cg_sub <- function(eq, forms, method_options, type, anchors, score_scale, index = NULL){
+
+  # Calculate N1 once to use as the consistent pivot for all bootstrap indices
+  n1 <- nrow(eq@data[[forms[1]]])
+
   means <- lapply(forms |> `names<-`(forms), \(frm) {
-    rows <- nrow(eq@data[[frm]])
-    i <- `if`(is.null(index), 1:rows, `if`(frm == forms[1], index[index<=rows], index[index>rows] - rows))
+    # If no index provided (point estimate), use all rows 1:nrow
+    # If bootstrap index provided:
+    #   Form 1: Take indices <= n1
+    #   Form 2: Take indices > n1, and shift them back by subtracting n1
+    if (is.null(index)) {
+      i <- 1:nrow(eq@data[[frm]])
+    } else {
+      if (frm == forms[1]) {
+        i <- index[index <= n1]
+      } else {
+        i <- index[index > n1] - n1
+      }
+    }
+
     fdat <- eq@data[[frm]][eq@forms[[frm]]]
     adat <- eq@data[[frm]][anchors]
-    ts = rowSums(fdat, na.rm = TRUE)[i]
-    tsa = rowSums(adat, na.rm = TRUE)[i]
-    list(mnx =  mean(ts), sdx = sd(ts), mnv = mean(tsa), sdv = sd(tsa), cov_xv = cov(ts, tsa))
+
+    # Calculate stats on the sliced data
+    ts  <- rowSums(fdat, na.rm = TRUE)[i]
+    tsa <- rowSums(adat, na.rm = TRUE)[i]
+
+    list(mnx = mean(ts), sdx = sd(ts), mnv = mean(tsa), sdv = sd(tsa), cov_xv = cov(ts, tsa))
   })
 
   # Pull options from the merged list
@@ -265,4 +284,3 @@ linear_cg_sub <- function(eq, forms, method_options, type, anchors, score_scale,
                    min_x = score_scale$min_x, max_x = score_scale$max_x, inc_x = score_scale$inc_x,
                    mean_only = mean_only, type = type, anchor = internal_anchors)
 }
-

@@ -2,33 +2,36 @@
 % Please edit documentation in R/r_utilities.R
 \name{equate}
 \alias{equate}
-\title{Internal Equating Dispatcher}
+\title{Equating Dispatcher}
 \usage{
 equate(forms, method, design, type, eq, title)
 }
 \arguments{
 \item{forms}{A character vector of length two indicating the forms to be equated.}
 
-\item{method}{A single-character code (`"L"`, `"E"`, `"IRT"`) specifying the
-primary equating method.}
+\item{method}{A single character code for the method (e.g., "L", "E", "I", "IRT").}
 
 \item{design}{A character string for the equating design (e.g., "cg").}
 
-\item{type}{A character string specifying the sub-method or calculation type.}
+\item{type}{A character string specifying the calculation type (e.g., "tucker", "true_score").}
 
-\item{eq}{The `equate_recipe` object containing all forms and methods.}
+\item{eq}{The `equate_recipe` object containing all data and method options.}
 
-\item{title}{The unique title of the method being run, used to retrieve
-the correct options from the `eq` object.}
-
-\item{boot_type}{The type of bootstrap confidence intervals.}
-
-\item{boot_replications}{The number of bootstrap replications.}
+\item{title}{The unique title of the method being run, used to retrieve the
+correct options from the `eq` object.}
+}
+\value{
+The results of the specific equating engine function.
 }
 \description{
-This function is the internal switchboard that calls the appropriate method-specific
-wrapper (`linear`, `equipercentile`, `irt`) based on the method specified
-in the `equate_recipe`. It is called by `run_equating()` for each method
-defined in the recipe's plan.
+This is an internal function that serves as the primary dispatcher for all
+equating methods within the `eqR` package. It is called by `run_equating()`
+for each method specified in an `equate_recipe`.
+}
+\details{
+The function's main role is to interpret the method details stored in the
+recipe and call the appropriate low-level "engine" function (e.g., `linear()`,
+`equipercentile()`, `irt()`). It also handles design-specific preparations,
+such as auto-detecting common items for the CNEG design.
 }
 \keyword{internal}

@@ -7,8 +7,7 @@
 lord_wingersky_recursion(irt_pars, theta_point)
 }
 \arguments{
-\item{irt_pars}{A data frame of item parameters (`slope`, `intercept`, `guess`)
-for a complete test.}
+\item{irt_pars}{A data frame of item parameters for a complete test.}
 
 \item{theta_point}{A single numeric value for the ability level.}
 }
@@ -22,15 +21,6 @@ calculate the probability of achieving each possible raw score on a test,
 conditional on a single, specific ability level (`theta_point`).
 }
 \details{
-The algorithm works iteratively. It starts with a distribution of `[1, 0, ...]`,
-representing a 100% chance of getting a score of 0 with 0 items. It then
-loops through each item, updating the score distribution at each step.
-The new probability of getting a score of `k` is a combination of:
-1. The probability of having a score of `k` on the previous sub-test and
-   failing the current item.
-2. The probability of having a score of `k-1` on the previous sub-test and
-   passing the current item.
-
 This is a direct R translation of the `recursion` function from `IRTst.c`.
 }
 \keyword{internal}

@@ -15,27 +15,57 @@ equipercentile <- function(forms, design, eq, title){
 
 #' @noRd
 get_freq_dist <- function(scores, score_levels) {
+  # This helper remains the same
   factor(scores, levels = score_levels) |> table() |> as.vector()
 }
 
 #' @noRd
 equate_none_stat_fun <- function(data, i, score_ps, ...) {
-  sample_data <- data[i, ]
-  freq_x <- get_freq_dist(sample_data$x, score_ps$range_x)
-  freq_y <- get_freq_dist(sample_data$y, score_ps$range_y)
+  # data is now Long: cols are 'score', 'form'
+  # i is the vector of indices selected by boot()
 
+  sample_data <- data[i, ]
+
+  # Extract X and Y scores based on the form column
+  # We assume the forms are ordered as they were passed to the main function
+  # (usually form X first, form Y second)
+
+  # Identify the form labels from the score parameters or data
+  # (Assuming the factor levels of 'form' match the order in score_ps)
+  forms <- levels(sample_data$form)
+
+  scores_x <- sample_data$score[sample_data$form == forms[1]]
+  scores_y <- sample_data$score[sample_data$form == forms[2]]
+
+  # Calculate frequency distributions
+  freq_x <- get_freq_dist(scores_x, score_ps$range_x)
+  freq_y <- get_freq_dist(scores_y, score_ps$range_y)
+
+  # Proceed with equating as before
   crfd_x <- cumsum(freq_x / sum(freq_x))
   crfd_y <- cumsum(freq_y / sum(freq_y))
 
   prdx <- perc_rank(x = score_ps$range_x, min = score_ps$min_x, max = score_ps$max_x, inc = score_ps$inc_x, crfd = crfd_x)
-  EquiEquate(nsy = length(score_ps$range_y), miny = score_ps$min_y, incy = score_ps$inc_y, crfdy = crfd_y, nsx = length(score_ps$range_x), prdx = prdx)
+
+  EquiEquate(nsy = length(score_ps$range_y),
+             miny = score_ps$min_y,
+             incy = score_ps$inc_y,
+             crfdy = crfd_y,
+             nsx = length(score_ps$range_x),
+             prdx = prdx)
 }
 
 #' @noRd
 equate_bb_stat_fun <- function(data, i, score_ps, method_opts) {
   sample_data <- data[i, ]
-  freq_x <- get_freq_dist(sample_data$x, score_ps$range_x)
-  freq_y <- get_freq_dist(sample_data$y, score_ps$range_y)
+
+  # Extract scores by form
+  forms <- levels(sample_data$form)
+  scores_x <- sample_data$score[sample_data$form == forms[1]]
+  scores_y <- sample_data$score[sample_data$form == forms[2]]
+
+  freq_x <- get_freq_dist(scores_x, score_ps$range_x)
+  freq_y <- get_freq_dist(scores_y, score_ps$range_y)
 
   # Smooth X
   smooth_x <- tryCatch(smooth_bb(n_persons = sum(freq_x), n_items = score_ps$k_x, freq = freq_x, rmoment = get_moments(scores=score_ps$range_x, freq=freq_x), nparm = method_opts$nparm, rel = score_ps$rel_x), error = function(e) NULL)
@@ -52,8 +82,14 @@ equate_bb_stat_fun <- function(data, i, score_ps, method_opts) {
 #' @noRd
 equate_loglinear_stat_fun <- function(data, i, score_ps, method_opts) {
   sample_data <- data[i, ]
-  freq_x <- get_freq_dist(sample_data$x, score_ps$range_x)
-  freq_y <- get_freq_dist(sample_data$y, score_ps$range_y)
+
+  # Extract scores by form
+  forms <- levels(sample_data$form)
+  scores_x <- sample_data$score[sample_data$form == forms[1]]
+  scores_y <- sample_data$score[sample_data$form == forms[2]]
+
+  freq_x <- get_freq_dist(scores_x, score_ps$range_x)
+  freq_y <- get_freq_dist(scores_y, score_ps$range_y)
 
   # Smooth X
   smooth_x <- tryCatch(smooth_ull(n = sum(freq_x), ns = length(freq_x), min = score_ps$min_x, inc = score_ps$inc_x, fd = freq_x, c = method_opts$degree), error = function(e) NULL)
@@ -69,8 +105,20 @@ equate_loglinear_stat_fun <- function(data, i, score_ps, method_opts) {
 
 #' @noRd
 equate_spline_stat_fun <- function(data, i, score_ps, method_opts) {
+  # Rely on the updated equate_none_stat_fun to handle long format extraction
   eraw <- equate_none_stat_fun(data, i, score_ps)
-  prdx_unsmoothed <- perc_rank(x = score_ps$range_x, min = score_ps$min_x, max = score_ps$max_x, inc = score_ps$inc_x, crfd = cumsum(get_freq_dist(data[i, ]$x, score_ps$range_x)/sum(i)))
+
+  sample_data <- data[i, ]
+  forms <- levels(sample_data$form)
+  scores_x <- sample_data$score[sample_data$form == forms[1]]
+
+  # Fix: Use length(scores_x) instead of sum(i)
+  prdx_unsmoothed <- perc_rank(x = score_ps$range_x,
+                               min = score_ps$min_x,
+                               max = score_ps$max_x,
+                               inc = score_ps$inc_x,
+                               crfd = cumsum(get_freq_dist(scores_x, score_ps$range_x) / length(scores_x)))
+
   xlow <- which.min(abs(prdx_unsmoothed - method_opts$prlow))
   xhigh <- which.min(abs(prdx_unsmoothed - method_opts$prhigh))
 
@@ -82,10 +130,22 @@ equate_spline_stat_fun <- function(data, i, score_ps, method_opts) {
 #' @noRd
 equate_kernel_stat_fun <- function(data, i, score_ps, method_opts) {
   sample_data <- data[i, ]
-  rel_freq_x <- get_freq_dist(sample_data$x, score_ps$range_x) / nrow(sample_data)
-  rel_freq_y <- get_freq_dist(sample_data$y, score_ps$range_y) / nrow(sample_data)
-  hx <- sd(sample_data$x) * (4 / (3 * nrow(sample_data)))^(1/5)
-  hy <- sd(sample_data$y) * (4 / (3 * nrow(sample_data)))^(1/5)
+  forms <- levels(sample_data$form)
+
+  scores_x <- sample_data$score[sample_data$form == forms[1]]
+  scores_y <- sample_data$score[sample_data$form == forms[2]]
+
+  n_x <- length(scores_x)
+  n_y <- length(scores_y)
+
+  # Calculate relative frequencies per form
+  rel_freq_x <- get_freq_dist(scores_x, score_ps$range_x) / n_x
+  rel_freq_y <- get_freq_dist(scores_y, score_ps$range_y) / n_y
+
+  # Calculate bandwidths (h) using the specific N for each form
+  hx <- sd(scores_x) * (4 / (3 * n_x))^(1/5)
+  hy <- sd(scores_y) * (4 / (3 * n_y))^(1/5)
+
   pr_x <- kernel_continu_cdf(score_ps$range_x, scores = score_ps$range_x, rel_freq = rel_freq_x, hx = hx)
   sapply(pr_x, function(p) kernel_inverse_cdf(p, scores = score_ps$range_y, rel_freq = rel_freq_y, hx = hy))
 }
@@ -93,12 +153,30 @@ equate_kernel_stat_fun <- function(data, i, score_ps, method_opts) {
 #' @noRd
 equate_cll_sg_stat_fun <- function(data, i, score_ps = score_params, method_opts, cb = NULL) {
   sample_data <- data[i, ]
-  bdf <- table(factor(sample_data$x, levels = score_ps$range_x), factor(sample_data$y, levels = score_ps$range_y))
-  bivar_smoothed <- smooth_bll(n = nrow(sample_data),
+  forms <- levels(sample_data$form)
+
+  scores_x <- sample_data$score[sample_data$form == forms[1]]
+  scores_y <- sample_data$score[sample_data$form == forms[2]]
+
+  # WARNING: Bivariate Log-Linear smoothing (CLL) requires paired data (Single Group design).
+  # The "long" format with stratified bootstrapping breaks the pairing between X and Y.
+  # This function will fail if N_x != N_y or if the data is not strictly paired.
+  if (length(scores_x) != length(scores_y)) {
+    stop("Bivariate smoothing requires equal sample sizes (paired data), but the input data is unpaired/unequal.")
+  }
+
+  # Attempt to create bivariate table assuming implicit pairing (row 1 x matches row 1 y)
+  # Note: Stratified bootstrapping of the long format shuffles X and Y independently,
+  # so the correlation structure here is likely destroyed.
+  bdf <- table(factor(scores_x, levels = score_ps$range_x),
+               factor(scores_y, levels = score_ps$range_y))
+
+  bivar_smoothed <- smooth_bll(n = length(scores_x),
                                nsu = length(score_ps$range_x), minu = score_ps$min_x, incu = score_ps$inc_x,
                                nsv = length(score_ps$range_y), minv = score_ps$min_y, incv = score_ps$inc_y,
                                nct = as.vector(t(bdf)), scale = FALSE,
                                cu = method_opts$cu, cv = method_opts$cv, cuv = method_opts$cuv, cpm = method_opts$cpm)
+
   if (is.null(bivar_smoothed) || !bivar_smoothed$converged) stop("Bivariate log-linear smoothing failed to converge.")
   equate_cll(design = `if`(is.null(cb), "SG", "CB"), bivar = bivar_smoothed)
 }
@@ -109,7 +187,7 @@ equate_sgrg_statistic <- function(data, i, method_options, score_params, smooth_
   # This wrapper function selects the correct statistical engine based on the smoothing code.
   # It is designed to be passed as the `statistic` to boot::boot.
   switch(smooth_code,
-         "N" = equate_none_stat_fun(data, i, score_params, method_options),
+         "N" = equate_none_stat_fun(data, i, score_ps = score_params, method_options),
          "B" = equate_bb_stat_fun(data, i, score_params, method_options),
          "L" = equate_loglinear_stat_fun(data, i, score_params, method_options),
          "S" = equate_spline_stat_fun(data, i, score_params, method_options), # error
@@ -130,8 +208,15 @@ equipercentile_sgrg <- function(eq, forms, title) {
   boot_replications = method_options$boot_reps
 
   # 2. Data and Score Scale Preparation
-  dat <- data.frame(do.call(cbind, lapply(forms, \(frm) rowSums(eq@data[[frm]], na.rm = TRUE))))
-  names(dat) <- c("x", "y")
+  dat <- do.call(rbind, lapply(forms, function(frm) {
+    data.frame(
+      score = rowSums(eq@data[[frm]], na.rm = TRUE),
+      form = frm,
+      stringsAsFactors = FALSE # Ensure forms are treated consistently
+    )
+  }))
+  # Ensure form is a factor for stratification
+  dat$form <- factor(dat$form, levels = forms)
 
   score_params <- list(
     min_x = attr(eq@data[[forms[1]]], "min"), max_x = attr(eq@data[[forms[1]]], "max"), inc_x = attr(eq@data[[forms[1]]], "inc"), range_x = attr(eq@data[[forms[1]]], "range"), k_x = attr(eq@data[[forms[1]]], "k"), n_x = attr(eq@data[[forms[1]]], "n"), rel_x = attr(eq@data[[forms[1]]], "rel"),
@@ -143,24 +228,29 @@ equipercentile_sgrg <- function(eq, forms, title) {
     equivalents <- equate_sgrg_statistic(data = dat,
                                          i = 1:nrow(dat),
                                          method_options = method_options,
-                                         score_params = score_params, smooth_code,
+                                         score_params = score_params, smooth_code = smooth_code,
                                          cb = `if`(is.null(attr(eq@design, "counter_balance_by")),
                                                    NULL,
                                                    eq@data_ids[[forms[1]]][[attr(eq@design, "counter_balance_by")]]))
     results <- list(list(
       parameters = NULL, x_score = score_params$range_x, equivalent_score = equivalents, bootstrapped_estimate = NA,
       nested_intervals = data.frame(se = NA, lower_bound_50 = NA, upper_bound_50 = NA, lower_bound_95 = NA, upper_bound_95 = NA),
-      observed_scores_x = dat$x, observed_scores_y = dat$y
+      # MODIFIED: Filter observed scores from long format
+      observed_scores_x = dat$score[dat$form == forms[1]],
+      observed_scores_y = dat$score[dat$form == forms[2]]
     )) |> `names<-`(method_name)
   } else {
     equi_boot <- boot::boot(data = dat, R = boot_replications,
                             statistic = equate_sgrg_statistic,
+                            # MODIFIED: Add stratification to resample within forms independently
+                            strata = dat$form,
                             method_options = method_options,
                             score_params = score_params,
                             smooth_code = smooth_code,
                             cb = `if`(is.null(attr(eq@design, "counter_balance_by")),
                                       NULL,
                                       eq@data_ids[[forms[1]]][[attr(eq@design, "counter_balance_by")]]))
+
     boots <- lapply(1:ncol(equi_boot$t), \(i) `if`(length(unique(equi_boot$t[,i])) == 1,
                                                    list(cbind(c(NA,NA), c(NA,NA))) |> `names<-`(sapply(boot_type, switch, "perc" = "percent")),
                                                    tryCatch({
@@ -192,13 +282,14 @@ equipercentile_sgrg <- function(eq, forms, title) {
       equivalent_score = equi_boot$t0,
       bootstrapped_estimate = bsm,
       nested_intervals = data.frame(se = bs_se, cis),
-      observed_scores_x = dat$x, observed_scores_y = dat$y
+      # MODIFIED: Filter observed scores from long format
+      observed_scores_x = dat$score[dat$form == forms[1]],
+      observed_scores_y = dat$score[dat$form == forms[2]]
     )) |> `names<-`(method_name)
   }
 
   return(results)
-}#, boot_type = "perc", boot_replications = 1000
-
+}
 
 #' Prepare Data for Common-Item Equipercentile Equating
 #'
