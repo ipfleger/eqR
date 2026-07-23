@@ -443,7 +443,15 @@ irt_observed_score_equate <- function(irt_pars_x, irt_pars_y, theta, eq, forms, 
   cum_pmf_x <- cumsum(marginal_pmf_x)
   cum_pmf_y <- cumsum(marginal_pmf_y)
 
-  equivalent_score <- stats::spline(x = cum_pmf_y, y = x_score, xout = cum_pmf_x, method = "natural")$y
+  # Equate the two IRT model-based observed-score distributions with standard
+  # equipercentile equating (perc_rank + perc_point), matching K&B and the rest
+  # of the package -- rather than an ad hoc (possibly non-monotone) spline inverse.
+  ns    <- length(x_score)
+  min_s <- x_score[1]
+  inc_s <- if (ns > 1) x_score[2] - x_score[1] else 1
+  prd_x <- perc_rank(x = x_score, min = min_s, max = x_score[ns], inc = inc_s, crfd = cum_pmf_x)
+  equivalent_score <- EquiEquate(nsy = ns, miny = min_s, incy = inc_s,
+                                 crfdy = cum_pmf_y, nsx = ns, prdx = prd_x)
 
   result <- list(
     x_score = x_score,

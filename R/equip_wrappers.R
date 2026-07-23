@@ -219,7 +219,7 @@ equate_sgrg_statistic <- function(data, i, method_options, score_params, smooth_
 }
 
 
-#' Robustly extract nested (50%/95%) bootstrap CI bounds for one statistic
+#' Robustly extract nested (50 and 95 percent) bootstrap CI bounds for one statistic
 #'
 #' Returns NA bounds for degenerate columns (all resamples equal) or when
 #' `boot::boot.ci` fails (e.g. too few replications for "bca"), falling back

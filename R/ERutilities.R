@@ -216,7 +216,6 @@ perc_rank <- function(x, min, max, inc, crfd) {
 #' # Find scores for multiple percentile ranks
 #' perc_point(pr = c(25, 50, 75), ns = 11, min = 0, inc = 1, crfd = cum_rel_freqs)
 #' }
-#' Compute Percentile Point (Score) from a Percentile Rank
 perc_point <- function(pr, ns, min, inc, crfd) {
 
   sapply(pr, function(single_pr) {
@@ -561,7 +560,7 @@ get_moments <- function(scores = NULL, freq = NULL, rel_freq = NULL, min = NULL,
 #' print(data.frame(x_score = 0:10, equated_y = equated_scores))
 #' }
 #' @export
-EquiEquate <- function(nsy, miny, incy, crfdy, nsx, prdx, eraw) {
+EquiEquate <- function(nsy, miny, incy, crfdy, nsx, prdx) {
   # This is a direct application of perc_point for each percentile rank in prdx
   eraw <- perc_point(pr = prdx, ns = nsy, min = miny, inc = incy, crfd = crfdy)
   return(eraw)

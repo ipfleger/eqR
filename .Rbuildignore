@@ -4,3 +4,10 @@
 ^docs$
 ^pkgdown$
 ^R/RcppExports\.R$
+^\.claude$
+^\.claude/
+^README\.Rmd$
+^\.Rhistory$
+^R/development$
+^R/graveyard$
+^LICENSE\.md$
