@@ -182,6 +182,11 @@ transform_irt_pars <- function(irt_pars, A, B) {
 #'
 #' @keywords internal
 irt <- function(forms, design, type, eq, title, ...) {
+  # run_equating() passes design codes "S"/"R"/"CG"; the IRT internals branch on
+  # the lowercase "cneg" for common-item nonequivalent groups. Normalize here so
+  # the scale-transformation path is actually taken for the CG design.
+  design <- if (toupper(design) %in% c("CG", "CNEG")) "cneg" else tolower(design)
+
   method_options <- eq@methods[[title]]$options
   theta <- method_options$theta
   all_irt_pars <- irt_coefs(method_options$irt_pars) # Standardize
@@ -362,8 +367,8 @@ irt_true_score_equate <- function(irt_pars_x, irt_pars_y, theta, eq, forms, min_
   result <- list(
     x_score = x_score,
     equivalent_score = equivalent_true_score,
-    observed_scores_x = if (!is.null(eq@data[[forms[1]]])) rowSums(eq@data[[forms[1]]][, -1]) else NULL,
-    observed_scores_y = if (!is.null(eq@data[[forms[2]]])) rowSums(eq@data[[forms[2]]][, -1]) else NULL,
+    observed_scores_x = if (!is.null(eq@data[[forms[1]]])) rowSums(eq@data[[forms[1]]][eq@forms[[forms[1]]]], na.rm = TRUE) else NULL,
+    observed_scores_y = if (!is.null(eq@data[[forms[2]]])) rowSums(eq@data[[forms[2]]][eq@forms[[forms[2]]]], na.rm = TRUE) else NULL,
     diagnostics = list(tcc_table = tcc_table)
   )
 
@@ -443,8 +448,8 @@ irt_observed_score_equate <- function(irt_pars_x, irt_pars_y, theta, eq, forms, 
   result <- list(
     x_score = x_score,
     equivalent_score = equivalent_score,
-    observed_scores_x = if (!is.null(eq@data[[forms[1]]])) rowSums(eq@data[[forms[1]]][, -1]) else NULL,
-    observed_scores_y = if (!is.null(eq@data[[forms[2]]])) rowSums(eq@data[[forms[2]]][, -1]) else NULL,
+    observed_scores_x = if (!is.null(eq@data[[forms[1]]])) rowSums(eq@data[[forms[1]]][eq@forms[[forms[1]]]], na.rm = TRUE) else NULL,
+    observed_scores_y = if (!is.null(eq@data[[forms[2]]])) rowSums(eq@data[[forms[2]]][eq@forms[[forms[2]]]], na.rm = TRUE) else NULL,
     diagnostics = list(
       score_distributions = score_distributions
     )
