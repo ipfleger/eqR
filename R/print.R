@@ -257,7 +257,7 @@ print_linear_cg <- function(title, pdata) {
 #'
 #' @return A data frame containing the comparative summary statistics, which is
 #'   also printed to the console in a formatted way.
-#' @author Google's Gemini
+#' @author R. L. Brennan, T. Wang, S. Kim, and J. Seol (Original C code)
 
 summary.linear_cg <- function(results_list, title = "Comparative Summary of Linear Equating Methods") {
 

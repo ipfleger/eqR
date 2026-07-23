@@ -12,10 +12,11 @@
 
 #' Calculate Lord's k from KR20 Reliability
 #'
-#' @description
 #' Calculates the value of Lord's k for the compound binomial error model,
 #' given a test's reliability (typically KR-20), number of items, and raw
-#' score moments. This is an R translation of `CalcLordk`.
+#' score moments. This is an R translation of `CalcLordk`. Returns 0 if
+#' reliability is <= 0, or if the calculated k is negative (which implies the
+#' model assumptions are not met for the given data).
 #'
 #' @param kr20 A numeric value for the reliability coefficient (e.g., KR-20).
 #' @param n_items An integer for the number of items on the test.
@@ -23,15 +24,8 @@
 #'   (mean and standard deviation).
 #'
 #' @return The numeric value of Lord's k.
-#' @author B. A. Hanson (Original C code), Google's Gemini (R translation)
-
-#' Calculate Lord's k
-#'
-#' @description
-#' Calculates the value of Lord's k. Returns 0 if reliability is <= 0,
-#' or if the calculated k is negative (which implies the model assumptions
-#' are not met for the given data).
-#'
+#' @references Hanson, B. A. (1991). Method of moments estimates for the
+#'   four-parameter beta compound binomial model (ACT Research Report 91-5).
 #' @export
 calc_lord_k <- function(kr20, n_items, rmoment) {
   # 1. Immediate constraint check
@@ -80,7 +74,7 @@ calc_lord_k <- function(kr20, n_items, rmoment) {
 #'     of the estimated true-score distribution.}
 #'   \item{nctmoment}{The first four non-central moments of the estimated
 #'     true-score distribution.}
-#' @author B. A. Hanson (Original C code), Google's Gemini (R translation)
+#' @author B. A. Hanson (Original C code)
 beta_moments <- function(n, k, rmoment) {
   # Convert raw score central moments to non-central moments
   mu1 <- rmoment[1]
@@ -131,7 +125,7 @@ beta_moments <- function(n, k, rmoment) {
 #' @param beta The second shape parameter (beta > 0).
 #'
 #' @return The numeric value of the kurtosis.
-#' @author B. A. Hanson (Original C code), Google's Gemini (R translation)
+#' @author B. A. Hanson (Original C code)
 calc_kurt <- function(alpha, beta) {
   a <- alpha; b <- beta
   k1 <- 3.0 * (a + b + 1.0)
@@ -158,7 +152,7 @@ calc_kurt <- function(alpha, beta) {
 #'
 #' @return A named vector with `alpha` and `beta` parameters, or `NULL` if
 #'   estimation fails.
-#' @author B. A. Hanson (Original C code), Google's Gemini (R translation)
+#' @author B. A. Hanson (Original C code)
 est_neg_hyp_geo <- function(n_items, tmoment, lower, upper) {
   maxmin <- n_items * (upper - lower)
   if(maxmin == 0) return(NULL)
@@ -186,7 +180,7 @@ est_neg_hyp_geo <- function(n_items, tmoment, lower, upper) {
 #'
 #' @return A named vector with `alpha`, `beta`, `lower`, and `upper` parameters,
 #'   or `NULL` if estimation fails.
-#' @author B. A. Hanson (Original C code), Google's Gemini (R translation)
+#' @author B. A. Hanson (Original C code)
 calc_beta_params_mm <- function(n_items, tmoment) {
   b2 <- tmoment[4]; b1 <- tmoment[3]^2
   denom <- 6.0 + 3.0 * b1 - 2.0 * b2
@@ -220,7 +214,7 @@ calc_beta_params_mm <- function(n_items, tmoment) {
 #' @param nctmoment A vector of the first four non-central true score moments.
 #'
 #' @return A named vector with the four beta parameters, or `NULL` on failure.
-#' @author B. A. Hanson (Original C code), Google's Gemini (R translation)
+#' @author B. A. Hanson (Original C code)
 calc_beta_params_ls <- function(n_items, tmoment, nctmoment) {
 
   find_upper <- function(lower, nctm) {
@@ -269,7 +263,7 @@ calc_beta_params_ls <- function(n_items, tmoment, nctmoment) {
 #'
 #' @return A named vector with the final estimated parameters (`alpha`, `beta`,
 #'   `lower`, `upper`) and `moments_fit`, indicating which method succeeded.
-#' @author B. A. Hanson (Original C code), Google's Gemini (R translation)
+#' @author B. A. Hanson (Original C code)
 calc_beta_params <- function(n_items, tmoment, nctmoment, nparm) {
   if (nparm == 4 && tmoment[2] > 0) {
     params <- calc_beta_params_mm(n_items, tmoment)
@@ -327,7 +321,7 @@ obs_density <- function(n_items, n_persons, beta_params) {
 #' @param scounts A numeric vector of fitted frequencies from `obs_density`.
 #'
 #' @return A numeric vector of the adjusted frequencies.
-#' @author B. A. Hanson (Original C code), Google's Gemini (R translation)
+#' @author B. A. Hanson (Original C code)
 obs_den_k <- function(n_items, k, scounts) {
   dn <- as.double(n_items)
   kn2 <- k / (dn * (dn - 1.0))

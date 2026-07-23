@@ -39,5 +39,5 @@ print(H_new)
 }
 }
 \author{
-Jaehoon Seol (Original C code), Google's Gemini (R translation)
+Jaehoon Seol (Original C code)
 }

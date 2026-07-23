@@ -25,5 +25,5 @@ distribution (or a scaled 4-parameter beta) from true score moments.
 This is an R translation of `EstNegHypGeo`.
 }
 \author{
-B. A. Hanson (Original C code), Google's Gemini (R translation)
+B. A. Hanson (Original C code)
 }

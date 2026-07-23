@@ -5,3 +5,9 @@
 .DS_Store
 .quarto
 docs
+
+# Test-run and build artifacts
+tests/testthat/Rplots.pdf
+*.o
+*.so
+*.dll

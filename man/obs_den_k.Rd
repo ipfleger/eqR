@@ -21,5 +21,5 @@ Adjusts an observed score distribution for compound binomial error using
 Lord's k. This is an R translation of `ObsDenK`.
 }
 \author{
-B. A. Hanson (Original C code), Google's Gemini (R translation)
+B. A. Hanson (Original C code)
 }

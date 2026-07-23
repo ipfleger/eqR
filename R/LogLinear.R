@@ -185,6 +185,7 @@ iteration <- function(B, B_raw, nct, N, max_nit = 100, crit = 1e-5) {
 #'   iterations, chi-square statistics, moments, and the final smoothed
 #'   density, CDF, and percentile ranks.
 #' @seealso \code{\link{iteration}}, \code{\link{design_matrix}}
+#' @export
 smooth_ull <- function(n, ns, min, inc, fd, c, scale = FALSE, crit = 1e-5, max_nit = 100) {
   # Always use scaling internally for numerical stability
   design <- design_matrix(nsu = ns, minu = min, incu = inc, cu = c, scale = TRUE)

@@ -3,13 +3,10 @@ pse <- readRDS("~/statwise ecosystem 2.0/lyzer/data/pse_google.rds")
 
 model <- lyzer:::pse2rasch(pse)
 
+
+
 tam <- TAM::tam(model@Data$data)
 tam$item
-
-
-
-
-
 
 
 lyzer:::tidy_coefs(model, tibble = TRUE, irt = TRUE)
@@ -25,6 +22,9 @@ bl@forms <- forms |> dplyr::rename(`Form A` = form1,
                             `Form B` = form2,
                             `Form C` = form3)
 
+models <- lapply(form_names(bl) |> `names<-`(form_names(bl)), \(x)
+       lyzer:::pse2rasch(pse |> dplyr::filter(item %in% bl@forms[[x]])))
+
 devtools::load_all(".")
 ctabs_a <- formr::crosstabs(bl@pse |> dplyr::filter(item %in% bl@forms$`Form A`), which = "s", id_cols = c("id"))
 ctabs_b <- formr::crosstabs(bl@pse |> dplyr::filter(item %in% bl@forms$`Form B`), which = "s", id_cols = c("id"))
@@ -37,10 +37,30 @@ eq <- init_equating() |>
   add_plan(`Form A` ~ `Form C` + `Form B`)
 
 
-# Single Group Design -----------------------------------
+# Single Group Design ----------------------------------- # I should be able to do both a mean and a linear equating at the same time. In fact, that should just be the default, no extra effort is required for a mean equating.
+single_test <- eq |>
+  add_design("SG") |> # Add the design
+  add_method(
+    method = "identity"
+  ) |> # Add the design
+  add_method(
+    method = "linear",
+  )  |>
+  add_method(
+    method = "equipercentile" # equipercentile equating no smoothing
+  ) |>
+  run_equating()
+
+single_test@results$
+
+
+
 # Mean equating
 real_big <- eq |>
   add_design("SG") |> # Add the design
+  add_method(
+    method = "identity"
+  ) |> # Add the design
   add_method(
     method = "linear", mean_only = TRUE,
     boot_reps = 1000, boot_type = "norm" # Mean equating
@@ -84,20 +104,26 @@ real_big <- eq |>
 
 
 
-lapply(names(real_big@results) |> `names<-`(names(real_big@results)), \(forms) {
+out_dat <- lapply(names(real_big@results) |> `names<-`(names(real_big@results)), \(forms) {
   lapply(names(real_big@results[[forms]]) |> `names<-`(names(real_big@results[[forms]])), \(method){
 
-     x <- real_big@results[[forms]][[method]]
-    frms <- strsplit(forms, split = ";")[[1]]
+     lapply(names(real_big@results[[forms]][[method]]) |>
+                   `names<-`(names(real_big@results[[forms]][[method]])), \(name){
+                     frms <- strsplit(forms, split = ";")[[1]]
+                     x <- real_big@results[[forms]][[method]][[name]]
+                     data.frame(possible = x$x_score,
+                                equivalent = x$equivalent_score) |>
+                       `colnames<-`(c(paste0(frms[1], "_score"),
+                                      paste(frms[2], name, "equivalent")))
+                   })[[1]]
 
-    data.frame(possible = x$x_score,
-               equivalent = x$equivalent_score) |>
-      `colnames<-`(c(paste0(frms[1], "_score"),
-                     paste(frms[2], method, "equivalent")))
-  })
-
-
+  }) |>
+  purrr:::reduce(dplyr::left_join)
 })
+
+
+
+out_dat$`Form B;Form A`[rowSums(real_big@data$`Form B`, na.rm = TRUE) + 1,] |> apply(2, quantile, na.rm = TRUE)
 
 plot_equivalent(results = single_equip_continuized_loglinear$`Form C;Form A`$`S E I Z`$`Equipercentile (CLL)`)
 # Missing confidence intervals don't plot well.
@@ -120,20 +146,54 @@ data.frame(x = 0:70, n = n, b = b, l = l, #s = s,
   ggplot2::geom_line()
 
 # IRT ----------------------
-single_irt <- eq |>
+
+identity <- eq |>
   add_design("SG") |> # Add the design
   add_method(
-    method = "irt", irt_pars = model
+    method = "identity"
   ) |>
   run_equating()
 
-single_irt_observed <- eq |>
-  add_design("SG") |> # Add the design
+
+eq <- init_equating() |>
+  add_form(ctabs_a, name = "Form A", id_cols = 'id', min_score = 0, max_score = 39) |>
+  add_form(ctabs_b, name = "Form B", id_cols = 'id', min_score = 0, max_score = 39) |>
+  add_plan(`Form A` ~ `Form B`)
+
+noneq_irt <- eq |>
+  add_design("CG") |> # Add the design
   add_method(
-    method = "irt", irt_pars = model, type = "observed_score",
+    method = "irt", irt_pars = models
   ) |>
   run_equating()
-single_irt_observed@results$`Form C;Form A`$`S IRT observed_score N`
+
+rg_irt <- eq |>
+  add_design("RG") |> # Add the design
+  add_method(
+    method = "irt", irt_pars = models
+  ) |>
+  run_equating()
+
+sg_irt <- eq |>
+  add_design("SG") |> # Add the design
+  add_method(
+    method = "irt", irt_pars = models
+  ) |>
+  run_equating()
+
+
+
+single_irt_observed <- eq |>
+  add_design("CG") |> # Add the design
+  add_method(
+    method = "irt", irt_pars = models, type = "observed_score",
+  ) |>
+  run_equating()
+
+single_irt_observed@results$`Form C;Form A`$`CG IRT observed_score N`
+
+# The closest one will always be identity, but how can we check the assumptions of this method?
+
 
 # methods -
 # ------------------------------------------------------------------------------
@@ -170,7 +230,6 @@ single$`Form B;Form A`$`S L linear N`$Linear$plots$score_conversion(relative = F
 single$`Form C;Form A`$`S L linear N`$Linear$plots$score_conversion(relative = TRUE)
 
 # Common-Item Group Design -----------------------------------
-
 
 common <- eq |>
   add_design("CG") |>
@@ -246,4 +305,4 @@ eq <- init_equating() |>
   run_equating(boot_type = "perc")
 
 
-
+# Equipercentile

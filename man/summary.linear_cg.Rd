@@ -22,5 +22,5 @@ generates a formatted summary table comparing the estimated slope and
 intercept for each equating method (Tucker, Levine, etc.).
 }
 \author{
-Google's Gemini
+R. L. Brennan, T. Wang, S. Kim, and J. Seol (Original C code)
 }

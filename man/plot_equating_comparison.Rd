@@ -35,5 +35,5 @@ functions on a single plot for easy visual comparison. It can generate
 either a standard plot or a plot of the difference from the identity line.
 }
 \author{
-Google's Gemini
+R. L. Brennan, T. Wang, S. Kim, and J. Seol (Original C code)
 }

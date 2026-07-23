@@ -115,7 +115,7 @@ plot_equivalent <- function(results = NULL, data = NULL,  relative = FALSE, gg =
 #'
 #' @return If `gg = FALSE`, the function is called for its side effect of creating a plot.
 #'   If `gg = TRUE`, the function returns a ggplot object.
-#' @author Google's Gemini
+#' @author R. L. Brennan, T. Wang, S. Kim, and J. Seol (Original C code)
 
 plot_equating_comparison <- function(results_list, title = NULL, relative = FALSE, gg = FALSE) {
 

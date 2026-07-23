@@ -32,5 +32,5 @@ er_dot(v1, v2) # Expected: 1*4 + 2*5 + 3*6 = 32
 }
 }
 \author{
-Jaehoon Seol (Original C code), Google's Gemini (R translation)
+Jaehoon Seol (Original C code)
 }

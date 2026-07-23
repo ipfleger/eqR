@@ -32,5 +32,5 @@ er_mvmult(M, V) # Expected: c(14, 32)
 }
 }
 \author{
-Jaehoon Seol (Original C code), Google's Gemini (R translation)
+Jaehoon Seol (Original C code)
 }

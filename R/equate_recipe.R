@@ -5,10 +5,17 @@ equate_recipe <- S7::new_class(
     forms    = S7::class_list,
     data     = S7::class_list,
     data_ids = S7::class_list,
+    anchors  = S7::class_list,
     plan     = S7::class_data.frame,
     design   = S7::class_character,
     methods  = S7::class_list,
-    results = S7::class_list # We are actually going to store results here. We will then go to plot, print, and summary methods. Is this too crazy? I'm not sure how this will work out.
+    # results: raw per-(plan, method, submethod) list from the equating engines,
+    #   kept for power users and back-compat.
+    results  = S7::class_list,
+    # conversions: the canonical *tidy* output built by run_equating() -- one row
+    #   per (from, to, method, x_score). This is the primary user-facing surface
+    #   (see conversions(), conversion_table(), equated()).
+    conversions = S7::class_data.frame
   )
 )
 
@@ -38,10 +45,12 @@ init_equating <- function() {
 #'   score scale. If `NULL`, they are calculated from the data.
 #' @param rel Optional. The internal consistency reliability (e.g., Cronbach's Alpha)
 #'   of the form. If `NULL`, it is calculated automatically.
+#' @param verbose Logical. If `TRUE` (default), print a one-line summary of the
+#'   added form (item count, N, score range, reliability).
 #'
 #' @return The updated `equate_recipe` object containing the new form.
 #' @export
-add_form <- function(equate_recipe, crosstabs, name, id_cols = NULL, min_score = NULL, max_score = NULL, inc = NULL, rel = NULL) {
+add_form <- function(equate_recipe, crosstabs, name, id_cols = NULL, min_score = NULL, max_score = NULL, inc = NULL, rel = NULL, verbose = TRUE) {
 
   # 1. Handle Data/ID splitting explicitly
   if (is.null(id_cols)) {
@@ -67,7 +76,8 @@ add_form <- function(equate_recipe, crosstabs, name, id_cols = NULL, min_score =
     min_score = min_score,
     max_score = max_score,
     inc = inc,
-    rel = rel
+    rel = rel,
+    verbose = verbose
   )
 
   # 3. Attach attributes safely
@@ -205,7 +215,7 @@ add_design <- function(equate_recipe, design, counter_balance_by = NULL) {
   # Match normalized design codes
   if (design %in% c("single", "single-group","single group", "s", "sg")) {
     cli::cli_inform("Single Group Design {ifelse(is.null(counter_balance_by), 'Without', 'With')} Counter Balancing")
-    equate_recipe@design <- ("S") |> `attr<-`("counter_balance_by", counter_balance_by) |> `attr<-`("label", glue::glue("Single Group Design {ifelse(is.null(counter_balance_by), 'Without', 'With')} Counter Balancing"))
+    equate_recipe@design <- ("S") |> `attr<-`("counter_balance_by", counter_balance_by) |> `attr<-`("label", paste0("Single Group Design ", if (is.null(counter_balance_by)) "Without" else "With", " Counter Balancing"))
   } else if (design %in% c("random", "random-groups", "r", "rg")) {
     cli::cli_inform("Random/Equivalent Groups Design")
     equate_recipe@design <- "R"  |> `attr<-`("label", "Random/Equivalent Groups Design")
@@ -446,10 +456,9 @@ add_method <- function(equate_recipe, method, type = "default", smooth = "none",
   if (new_method$method == "I") {
     new_method$type <- "identity"
   } else if (new_method$method == "L") {
-    # if(new_method$design == "SG") new_method$type <- ifelse(options$mean_only, "mean", "linear") #### Gemini, this is a poor design choice.
+    # Linear SG/RG runs mean and slope-intercept together; `mean_only` selects
+    # which one the summary highlights, so a single "all" type covers both.
     new_method$type <- "all"
-
-
   } else if (new_method$method == "E") {
     new_method$type <- "E" # Placeholder
   } else if (new_method$method == "IRT") {
@@ -523,8 +532,13 @@ add_method <- function(equate_recipe, method, type = "default", smooth = "none",
     cli::cli_abort("Smoothing is not applicable to the linear method.")
   }
 
-  # Create a unique title for the method
+  # Create a unique title for the method. Mean equating shares the linear
+  # engine and "all" type, so tag it so a mean and a slope-intercept linear
+  # method in the same recipe don't collide and overwrite each other.
   type_str <- paste(new_method$type, collapse = "_")
+  if (new_method$method == "L" && isTRUE(options$mean_only)) {
+    type_str <- paste0(type_str, "_mean")
+  }
   title_parts <- c(design, new_method$method, type_str, new_method$smooth)
   new_method$title <- paste(title_parts, collapse = " ")
 
@@ -543,30 +557,56 @@ add_method <- function(equate_recipe, method, type = "default", smooth = "none",
 
 
 
-run_equating <- function(eq){#, boot_type = "perc", boot_replications = 1000
+#' Run every method in an equating recipe
+#'
+#' Executes each method added with [add_method()] against each pairing in the
+#' recipe's plan, populating the recipe with results. After running, use the
+#' tidy accessors ([conversions()], [conversion_table()], [equated()]) or the
+#' `print()`, `summary()`, and `plot()` methods to inspect the output.
+#'
+#' @param eq An `equate_recipe` built with [init_equating()] and the `add_*()`
+#'   functions (must have at least a design, a plan, and one method).
+#'
+#' @return The `equate_recipe`, with the raw per-method results in `@results`
+#'   and a tidy long conversion table in `@conversions`.
+#' @export
+run_equating <- function(eq){
 
-  eq@results <- lapply(1:nrow(eq@plan) |> `names<-`(apply(eq@plan, 1, paste0,collapse = ";")), \(i) {
+  if (!length(eq@design))       cli::cli_abort("Add a design with {.fn add_design} before running.")
+  if (!nrow(eq@plan))           cli::cli_abort("Add a plan with {.fn add_plan} before running.")
+  if (!length(eq@methods))      cli::cli_abort("Add at least one method with {.fn add_method} before running.")
 
-    lapply(eq@methods, \(method){
-      # Correctly extract the forms for the current iteration
-      forms <- as.character(eq@plan[i,])
+  plan_keys <- apply(eq@plan, 1, paste0, collapse = ";")
+  design    <- as.character(eq@design)   # drop attributes for a clean dispatch value
 
-      # Extract method details from the unique title
-      method_details <- strsplit(method$title, split = " ")[[1]]
-      design <- method_details[1]
-      method_code <- method_details[2]
+  eq@results <- lapply(stats::setNames(seq_len(nrow(eq@plan)), plan_keys), function(i) {
+    forms <- as.character(eq@plan[i, ])
 
-      equate(forms = forms,
-             design = design,
-             type = method$type, # Use the stored type directly
-             eq = eq,
-             title = method$title,
-             method = method_code)
+    lapply(eq@methods, function(method) {
+      # Structured dispatch: read the method's own fields instead of re-parsing
+      # its space-delimited title string.
+      tryCatch(
+        equate(forms  = forms,
+               design = design,
+               type   = method$type,
+               eq     = eq,
+               title  = method$title,
+               method = method$method),
+        error = function(e) {
+          cli::cli_alert_danger(
+            "Method {.val {method$title}} failed for {.val {paste(forms, collapse = ' -> ')}}: {conditionMessage(e)}"
+          )
+          structure(list(), class = "equate_failed", message = conditionMessage(e))
+        }
+      )
     })
   })
 
-  # Assign the custom class for S3 dispatch
-  print(summary(eq)) # So we need to make a method for summary for this object.
-  # It will need to
-  return(eq)
+  # Build the canonical tidy conversion table (does not re-parse title strings).
+  eq@conversions <- collect_conversions(eq)
+
+  cli::cli_alert_success(
+    "Ran {length(eq@methods)} method{?s} over {nrow(eq@plan)} pairing{?s}. See {.fn conversion_table}, {.fn conversions}, {.fn equated}, or {.code summary()}."
+  )
+  eq
 }

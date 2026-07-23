@@ -48,10 +48,11 @@ perc_point(pr = 50, ns = 11, min = 0, inc = 1, crfd = cum_rel_freqs)
 # Find scores for multiple percentile ranks
 perc_point(pr = c(25, 50, 75), ns = 11, min = 0, inc = 1, crfd = cum_rel_freqs)
 }
+Compute Percentile Point (Score) from a Percentile Rank
 }
 \seealso{
 \code{\link{perc_rank}}
 }
 \author{
-R. L. Brennan (Original C code), Google's Gemini (R translation)
+R. L. Brennan (Original C code)
 }

@@ -7,28 +7,53 @@
 smooth_bb(n_persons, n_items, freq, rmoment, nparm, rel)
 }
 \arguments{
-\item{n_persons}{The total number of examinees in the sample.}
+\item{n_persons}{Integer. The total number of examinees in the sample.}
 
-\item{n_items}{The number of items on the test.}
+\item{n_items}{Integer. The number of items on the test.}
 
-\item{freq}{A numeric vector of the observed raw score frequencies.}
+\item{freq}{Numeric vector. The observed raw score frequencies.}
 
-\item{rmoment}{A numeric vector of the first four raw score moments.}
+\item{rmoment}{Numeric vector. The first four raw score moments (mean, variance, skewness, kurtosis).}
 
-\item{nparm}{The number of parameters for the beta distribution (2 or 4).}
+\item{nparm}{Integer. The number of parameters for the beta distribution (2 or 4).}
 
-\item{rel}{The reliability of the test (e.g., KR-20), used to calculate
-Lord's k for the compound binomial model. Set to 0 for the simple model.}
+\item{rel}{Numeric. The reliability of the test (usually KR-20). Used to calculate Lord's k.}
 }
 \value{
-A list containing all results from the smoothing process, including
-  the smoothed density, beta parameters, fitted moments, and chi-square statistics.
+A list containing:
+\itemize{
+  \item \code{density}: The smoothed probability density function.
+  \item \code{crfd}: The cumulative relative frequency distribution.
+  \item \code{prd}: The percentile rank distribution.
+  \item \code{beta_params}: The estimated Beta parameters (\eqn{\alpha, \beta, \text{lower}, \text{upper}}).
+  \item \code{fitted_moments}: Moments of the fitted distribution.
+  \item \code{true_moments}: Estimated true score moments.
+  \item \code{lr_chisq}: Likelihood ratio Chi-square statistic.
+  \item \code{p_chisq}: Pearson Chi-square statistic.
+  \item \code{lord_k}: The calculated Lord's k adjustment factor.
+}
 }
 \description{
-This is the main wrapper function that orchestrates the entire beta-binomial
-smoothing process. It estimates true score moments, fits a beta distribution
-to those moments, and then calculates the smoothed observed score distribution.
+The main wrapper function for Beta-Binomial smoothing. It estimates true score
+moments, fits a beta distribution to those moments, and calculates the
+smoothed observed score distribution.
 }
-\author{
-B. A. Hanson & R. L. Brennan (Original C code), Google's Gemini (R translation)
+\details{
+The function fits a Beta-Binomial distribution to the observed data. For the
+standard 2-parameter model, the probability of observing score \eqn{x} out of
+\eqn{n} items is given by:
+
+\deqn{P(X=x) = {n \choose x} \frac{B(\alpha + x, \beta + n - x)}{B(\alpha, \beta)}}
+
+where \eqn{B(\cdot)} is the Beta function, and \eqn{\alpha} and \eqn{\beta} are
+the shape parameters estimated from the method of moments.
+
+
+The function also supports a 4-parameter Beta model (generalized Beta) and
+Lord's k correction for compound binomial errors (when `rel > 0`), which accounts
+for variations in item difficulty or inter-item correlation.
+}
+\references{
+Hanson, B. A. (1991). Method of moments estimates for the four-parameter beta compound binomial model and the calculation of classification consistency estimates. (ACT Research Report 91-5).
+Lord, F. M. (1965). A strong true-score theory, with applications. Psychometrika, 30(3), 239-270.
 }
