@@ -158,13 +158,14 @@ translate_title <- function(title) {
 
 #' Summarize a run equating recipe
 #'
-#' For each form pairing, prints (and invisibly returns) the wide conversion
-#' table and a moment comparison of the observed and equated distributions.
+#' For each form pairing, prints (and invisibly returns) a slope/intercept
+#' comparison of the linear methods, the wide conversion table, and a moment
+#' comparison of the observed and equated distributions.
 #'
 #' @param object An `equate_recipe` that has been through [run_equating()].
 #' @param ... Optional `from`/`to` to restrict to a single pairing.
-#' @return Invisibly, a named list (one element per pairing) of
-#'   `conversion_table` and `moments`.
+#' @return Invisibly, a named list (one element per pairing) of `parameters`,
+#'   `conversion_table`, and `moments`.
 #' @name summary.equate_recipe
 #' @keywords internal
 S7::method(summary, equate_recipe) <- function(object, ...) {
@@ -185,8 +186,17 @@ S7::method(summary, equate_recipe) <- function(object, ...) {
     from <- pairs$from[k]; to <- pairs$to[k]
     cli::cli_h2("{from} -> {to}")
 
-    ct  <- conversion_table(object, from = from, to = to)
-    mom <- .conversion_moments(object, from, to)
+    params <- .parameter_table(object, from, to)
+    ct     <- conversion_table(object, from = from, to = to)
+    mom    <- .conversion_moments(object, from, to)
+
+    if (!is.null(params)) {
+      cli::cli_text("Linear parameters:")
+      p <- params
+      p[-1] <- lapply(p[-1], round, 4)
+      print(p, row.names = FALSE)
+      cli::cli_text("")
+    }
 
     cli::cli_text("Conversion table ({nrow(ct)} score points, {ncol(ct) - 1} method{?s}):")
     print(utils::head(ct, 10L), row.names = FALSE)
@@ -198,7 +208,9 @@ S7::method(summary, equate_recipe) <- function(object, ...) {
       print(round(mom, 3))
     }
     cli::cli_rule()
-    out[[paste0(from, " -> ", to)]] <- list(conversion_table = ct, moments = mom)
+    out[[paste0(from, " -> ", to)]] <- list(parameters = params,
+                                            conversion_table = ct,
+                                            moments = mom)
   }
   invisible(out)
 }
@@ -206,33 +218,76 @@ S7::method(summary, equate_recipe) <- function(object, ...) {
 
 #' Plot equating conversions
 #'
-#' Draws the equated-score conversion line for each method of one form pairing,
-#' with the identity line for reference (base graphics, no extra dependencies).
+#' Draws each method's equating function for one form pairing (base graphics, no
+#' extra dependencies). By default it plots equated score against raw score with
+#' the identity line for reference; `difference = TRUE` instead plots the
+#' departure from identity (equated - raw), which magnifies the differences
+#' between methods. When `se = TRUE`, +/- 2 SE bands are shaded for methods that
+#' were bootstrapped.
 #'
 #' @param x An `equate_recipe` that has been through [run_equating()].
-#' @param ... Optional `from`/`to` to select the pairing.
+#' @param ... Optional `from`/`to` to select the pairing, `difference` (logical),
+#'   and `se` (logical) to shade +/- 2 SE bands where available.
 #' @return Invisibly, the wide conversion table that was plotted.
 #' @name plot.equate_recipe
 #' @keywords internal
 S7::method(plot, equate_recipe) <- function(x, ...) {
-  dots <- list(...)
+  dots       <- list(...)
+  difference <- isTRUE(dots$difference)
+  show_se    <- isTRUE(dots$se)
+
   ct <- conversion_table(x, from = dots$from, to = dots$to)
+  from <- attr(ct, "from"); to <- attr(ct, "to")
   methods <- setdiff(names(ct), "x_score")
   if (!length(methods)) cli::cli_abort("Nothing to plot.")
+  xs <- ct$x_score
 
-  cols <- grDevices::hcl.colors(max(length(methods), 2), palette = "viridis")
-  xr <- range(ct$x_score, na.rm = TRUE)
-  yr <- range(unlist(ct[methods]), na.rm = TRUE)
-
-  graphics::plot(NA, xlim = xr, ylim = yr,
-                 xlab = paste0(attr(ct, "from"), " raw score"),
-                 ylab = paste0(attr(ct, "to"), " equivalent score"),
-                 main = paste0("Equating: ", attr(ct, "from"), " -> ", attr(ct, "to")))
-  graphics::abline(0, 1, col = "grey70", lty = 2)
-  for (i in seq_along(methods)) {
-    graphics::lines(ct$x_score, ct[[methods[i]]], col = cols[i], lwd = 2)
+  # per-method standard errors from the long tidy table (for the SE bands)
+  long <- x@conversions
+  long <- long[long$from == from & long$to == to, , drop = FALSE]
+  se_for <- function(m) {
+    s <- long$se[long$method == m][match(xs, long$x_score[long$method == m])]
+    if (all(is.na(s))) NULL else s
   }
-  graphics::legend("topleft", legend = methods, col = cols[seq_along(methods)],
+
+  yval <- function(m) ct[[m]] - if (difference) xs else 0
+  cols <- grDevices::hcl.colors(max(length(methods), 2), palette = "viridis")
+
+  ys <- lapply(methods, yval)
+  yr <- range(unlist(ys), na.rm = TRUE)
+  if (show_se) {
+    for (m in methods) {
+      s <- se_for(m); if (!is.null(s)) yr <- range(yr, (ct[[m]] - if (difference) xs else 0) + c(-2, 2) * max(s, na.rm = TRUE), na.rm = TRUE)
+    }
+  }
+
+  graphics::plot(NA, xlim = range(xs, na.rm = TRUE), ylim = yr,
+                 xlab = paste0(from, " raw score"),
+                 ylab = if (difference) paste0(to, " equivalent - raw score")
+                        else paste0(to, " equivalent score"),
+                 main = paste0(if (difference) "Equating differences: " else "Equating: ",
+                               from, " -> ", to))
+  if (difference) graphics::abline(h = 0, col = "grey70", lty = 2)
+  else            graphics::abline(0, 1, col = "grey70", lty = 2)
+
+  for (i in seq_along(methods)) {
+    m <- methods[i]; yv <- ys[[i]]
+    if (show_se) {
+      s <- se_for(m)
+      if (!is.null(s)) {
+        ok <- !is.na(s) & !is.na(yv)
+        if (any(ok)) {
+          band <- grDevices::adjustcolor(cols[i], alpha.f = 0.2)
+          graphics::polygon(c(xs[ok], rev(xs[ok])),
+                            c((yv - 2 * s)[ok], rev((yv + 2 * s)[ok])),
+                            col = band, border = NA)
+        }
+      }
+    }
+    graphics::lines(xs, yv, col = cols[i], lwd = 2)
+  }
+  graphics::legend(if (difference) "topright" else "topleft",
+                   legend = methods, col = cols[seq_along(methods)],
                    lwd = 2, bty = "n", cex = 0.9)
   invisible(ct)
 }

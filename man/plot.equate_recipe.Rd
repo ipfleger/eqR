@@ -6,13 +6,18 @@
 \arguments{
 \item{x}{An `equate_recipe` that has been through [run_equating()].}
 
-\item{...}{Optional `from`/`to` to select the pairing.}
+\item{...}{Optional `from`/`to` to select the pairing, `difference` (logical),
+and `se` (logical) to shade +/- 2 SE bands where available.}
 }
 \value{
 Invisibly, the wide conversion table that was plotted.
 }
 \description{
-Draws the equated-score conversion line for each method of one form pairing,
-with the identity line for reference (base graphics, no extra dependencies).
+Draws each method's equating function for one form pairing (base graphics, no
+extra dependencies). By default it plots equated score against raw score with
+the identity line for reference; `difference = TRUE` instead plots the
+departure from identity (equated - raw), which magnifies the differences
+between methods. When `se = TRUE`, +/- 2 SE bands are shaded for methods that
+were bootstrapped.
 }
 \keyword{internal}

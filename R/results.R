@@ -230,3 +230,37 @@ equated <- function(eq, scores, from = NULL, to = NULL, method = NULL) {
   if (!length(rows)) return(NULL)
   do.call(rbind, rows)
 }
+
+#' Slope/intercept comparison for the linear methods of a pairing
+#'
+#' Pulls the fitted slope and intercept (and their SE, when bootstrapped) from
+#' the raw results. Returns NULL when no linear method is present.
+#' @keywords internal
+.parameter_table <- function(eq, from, to) {
+  grp <- eq@results[[paste0(from, ";", to)]]
+  if (is.null(grp)) return(NULL)
+  rows <- list()
+  for (title in names(grp)) {
+    g <- grp[[title]]
+    if (!is.list(g) || inherits(g, "equate_failed")) next
+    for (sm in names(g)) {
+      p <- g[[sm]]$parameters
+      if (is.null(p) || !is.data.frame(p) || !"statistics" %in% names(p)) next
+      pick <- function(stat, col) {
+        v <- p[[col]][p$statistics == stat]
+        if (length(v)) v[1] else NA_real_
+      }
+      if (!length(p$estimate[p$statistics == "Slope"])) next
+      rows[[sm]] <- data.frame(
+        method       = sm,
+        slope        = pick("Slope", "estimate"),
+        se_slope     = if ("se" %in% names(p)) pick("Slope", "se") else NA_real_,
+        intercept    = pick("Intercept", "estimate"),
+        se_intercept = if ("se" %in% names(p)) pick("Intercept", "se") else NA_real_,
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  if (!length(rows)) return(NULL)
+  out <- do.call(rbind, rows); rownames(out) <- NULL; out
+}
