@@ -4,7 +4,7 @@
 \alias{EquiEquate}
 \title{Perform Equipercentile Equating}
 \usage{
-EquiEquate(nsy, miny, incy, crfdy, nsx, prdx, eraw)
+EquiEquate(nsy, miny, incy, crfdy, nsx, prdx)
 }
 \arguments{
 \item{nsy}{An integer, the number of score categories for the old form `Y`.}
