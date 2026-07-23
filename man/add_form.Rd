@@ -12,7 +12,8 @@ add_form(
   min_score = NULL,
   max_score = NULL,
   inc = NULL,
-  rel = NULL
+  rel = NULL,
+  verbose = TRUE
 )
 }
 \arguments{
@@ -30,6 +31,9 @@ score scale. If `NULL`, they are calculated from the data.}
 
 \item{rel}{Optional. The internal consistency reliability (e.g., Cronbach's Alpha)
 of the form. If `NULL`, it is calculated automatically.}
+
+\item{verbose}{Logical. If `TRUE` (default), print a one-line summary of the
+added form (item count, N, score range, reliability).}
 }
 \value{
 The updated `equate_recipe` object containing the new form.

@@ -160,13 +160,12 @@ get_form_attributes <- function(ctabs, form_name = NULL, min_score = NULL, max_s
     rel <- kr20(ctabs, k = k)
   }
 
-  # If verbose is TRUE, print the summary to the console
+  # If verbose is TRUE, print a one-line summary to the console
   if (verbose) {
-    # Using the cli package for formatted output
-    cli::cli_h1("Data Check:")
-    cli::cli_inform("{form_name%||%'Score Summary'}: min = {min_val}, max = {max_val}, inc = {inc}, rel = {round(rel,2)}")
-    print(num_sum)
-    cli::cli_rule()
+    cli::cli_inform(paste0(
+      "Added {.strong {form_name %||% 'form'}}: {k} items, N = {nrow(ctabs)}, ",
+      "score {min_val}-{max_val} (inc {inc}), reliability {round(rel, 2)}"
+    ))
   }
 
   # Return the list of calculated values

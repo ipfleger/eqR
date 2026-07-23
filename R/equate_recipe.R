@@ -9,7 +9,13 @@ equate_recipe <- S7::new_class(
     plan     = S7::class_data.frame,
     design   = S7::class_character,
     methods  = S7::class_list,
-    results = S7::class_list # We are actually going to store results here. We will then go to plot, print, and summary methods. Is this too crazy? I'm not sure how this will work out.
+    # results: raw per-(plan, method, submethod) list from the equating engines,
+    #   kept for power users and back-compat.
+    results  = S7::class_list,
+    # conversions: the canonical *tidy* output built by run_equating() -- one row
+    #   per (from, to, method, x_score). This is the primary user-facing surface
+    #   (see conversions(), conversion_table(), equated()).
+    conversions = S7::class_data.frame
   )
 )
 
@@ -39,10 +45,12 @@ init_equating <- function() {
 #'   score scale. If `NULL`, they are calculated from the data.
 #' @param rel Optional. The internal consistency reliability (e.g., Cronbach's Alpha)
 #'   of the form. If `NULL`, it is calculated automatically.
+#' @param verbose Logical. If `TRUE` (default), print a one-line summary of the
+#'   added form (item count, N, score range, reliability).
 #'
 #' @return The updated `equate_recipe` object containing the new form.
 #' @export
-add_form <- function(equate_recipe, crosstabs, name, id_cols = NULL, min_score = NULL, max_score = NULL, inc = NULL, rel = NULL) {
+add_form <- function(equate_recipe, crosstabs, name, id_cols = NULL, min_score = NULL, max_score = NULL, inc = NULL, rel = NULL, verbose = TRUE) {
 
   # 1. Handle Data/ID splitting explicitly
   if (is.null(id_cols)) {
@@ -68,7 +76,8 @@ add_form <- function(equate_recipe, crosstabs, name, id_cols = NULL, min_score =
     min_score = min_score,
     max_score = max_score,
     inc = inc,
-    rel = rel
+    rel = rel,
+    verbose = verbose
   )
 
   # 3. Attach attributes safely
@@ -523,8 +532,13 @@ add_method <- function(equate_recipe, method, type = "default", smooth = "none",
     cli::cli_abort("Smoothing is not applicable to the linear method.")
   }
 
-  # Create a unique title for the method
+  # Create a unique title for the method. Mean equating shares the linear
+  # engine and "all" type, so tag it so a mean and a slope-intercept linear
+  # method in the same recipe don't collide and overwrite each other.
   type_str <- paste(new_method$type, collapse = "_")
+  if (new_method$method == "L" && isTRUE(options$mean_only)) {
+    type_str <- paste0(type_str, "_mean")
+  }
   title_parts <- c(design, new_method$method, type_str, new_method$smooth)
   new_method$title <- paste(title_parts, collapse = " ")
 
@@ -558,28 +572,41 @@ add_method <- function(equate_recipe, method, type = "default", smooth = "none",
 #' @export
 run_equating <- function(eq){
 
-  eq@results <- lapply(1:nrow(eq@plan) |> `names<-`(apply(eq@plan, 1, paste0,collapse = ";")), \(i) {
+  if (!length(eq@design))       cli::cli_abort("Add a design with {.fn add_design} before running.")
+  if (!nrow(eq@plan))           cli::cli_abort("Add a plan with {.fn add_plan} before running.")
+  if (!length(eq@methods))      cli::cli_abort("Add at least one method with {.fn add_method} before running.")
 
-    lapply(eq@methods, \(method){
-      # Correctly extract the forms for the current iteration
-      forms <- as.character(eq@plan[i,])
+  plan_keys <- apply(eq@plan, 1, paste0, collapse = ";")
+  design    <- as.character(eq@design)   # drop attributes for a clean dispatch value
 
-      # Extract method details from the unique title
-      method_details <- strsplit(method$title, split = " ")[[1]]
-      design <- method_details[1]
-      method_code <- method_details[2]
+  eq@results <- lapply(stats::setNames(seq_len(nrow(eq@plan)), plan_keys), function(i) {
+    forms <- as.character(eq@plan[i, ])
 
-      equate(forms = forms,
-             design = design,
-             type = method$type, # Use the stored type directly
-             eq = eq,
-             title = method$title,
-             method = method_code)
+    lapply(eq@methods, function(method) {
+      # Structured dispatch: read the method's own fields instead of re-parsing
+      # its space-delimited title string.
+      tryCatch(
+        equate(forms  = forms,
+               design = design,
+               type   = method$type,
+               eq     = eq,
+               title  = method$title,
+               method = method$method),
+        error = function(e) {
+          cli::cli_alert_danger(
+            "Method {.val {method$title}} failed for {.val {paste(forms, collapse = ' -> ')}}: {conditionMessage(e)}"
+          )
+          structure(list(), class = "equate_failed", message = conditionMessage(e))
+        }
+      )
     })
   })
 
-  # Assign the custom class for S3 dispatch
-  print(summary(eq)) # So we need to make a method for summary for this object.
-  # It will need to
-  return(eq)
+  # Build the canonical tidy conversion table (does not re-parse title strings).
+  eq@conversions <- collect_conversions(eq)
+
+  cli::cli_alert_success(
+    "Ran {length(eq@methods)} method{?s} over {nrow(eq@plan)} pairing{?s}. See {.fn conversion_table}, {.fn conversions}, {.fn equated}, or {.code summary()}."
+  )
+  eq
 }

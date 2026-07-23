@@ -51,6 +51,8 @@ S7::method(print, equate_recipe) <- function(x, ...) {
         print_result_summary(result, x, from_form)
       }
     }
+    cli::cli_rule()
+    cli::cli_alert_info("Tidy accessors: {.fn conversion_table}, {.fn conversions}, {.fn equated}; or {.code summary()} / {.code plot()}.")
   }
   invisible(x)
 }
@@ -133,6 +135,7 @@ translate_title <- function(title) {
                    parts[1]
   )
   method <- switch(parts[2],
+                   "I" = "Identity",
                    "L" = "Linear",
                    "E" = "Equipercentile",
                    "IRT" = "IRT",
@@ -150,4 +153,86 @@ translate_title <- function(title) {
   )
 
   paste(design, ": ", method, " (", type, ") ", smooth, sep = "")
+}
+
+
+#' Summarize a run equating recipe
+#'
+#' For each form pairing, prints (and invisibly returns) the wide conversion
+#' table and a moment comparison of the observed and equated distributions.
+#'
+#' @param object An `equate_recipe` that has been through [run_equating()].
+#' @param ... Optional `from`/`to` to restrict to a single pairing.
+#' @return Invisibly, a named list (one element per pairing) of
+#'   `conversion_table` and `moments`.
+#' @name summary.equate_recipe
+#' @keywords internal
+S7::method(summary, equate_recipe) <- function(object, ...) {
+  conv <- object@conversions
+  if (is.null(conv) || !nrow(conv)) {
+    cli::cli_alert_warning("No results yet. Run {.fn run_equating} first.")
+    return(invisible(NULL))
+  }
+
+  dots <- list(...)
+  pairs <- unique(conv[, c("from", "to")])
+  if (!is.null(dots$from)) pairs <- pairs[pairs$from == dots$from, , drop = FALSE]
+  if (!is.null(dots$to))   pairs <- pairs[pairs$to   == dots$to,   , drop = FALSE]
+
+  cli::cli_h1("Equating summary")
+  out <- list()
+  for (k in seq_len(nrow(pairs))) {
+    from <- pairs$from[k]; to <- pairs$to[k]
+    cli::cli_h2("{from} -> {to}")
+
+    ct  <- conversion_table(object, from = from, to = to)
+    mom <- .conversion_moments(object, from, to)
+
+    cli::cli_text("Conversion table ({nrow(ct)} score points, {ncol(ct) - 1} method{?s}):")
+    print(utils::head(ct, 10L), row.names = FALSE)
+    if (nrow(ct) > 10L) cli::cli_text("... ({nrow(ct) - 10L} more rows; see {.fn conversion_table})")
+
+    if (!is.null(mom)) {
+      cli::cli_text("")
+      cli::cli_text("Score-distribution moments:")
+      print(round(mom, 3))
+    }
+    cli::cli_rule()
+    out[[paste0(from, " -> ", to)]] <- list(conversion_table = ct, moments = mom)
+  }
+  invisible(out)
+}
+
+
+#' Plot equating conversions
+#'
+#' Draws the equated-score conversion line for each method of one form pairing,
+#' with the identity line for reference (base graphics, no extra dependencies).
+#'
+#' @param x An `equate_recipe` that has been through [run_equating()].
+#' @param ... Optional `from`/`to` to select the pairing.
+#' @return Invisibly, the wide conversion table that was plotted.
+#' @name plot.equate_recipe
+#' @keywords internal
+S7::method(plot, equate_recipe) <- function(x, ...) {
+  dots <- list(...)
+  ct <- conversion_table(x, from = dots$from, to = dots$to)
+  methods <- setdiff(names(ct), "x_score")
+  if (!length(methods)) cli::cli_abort("Nothing to plot.")
+
+  cols <- grDevices::hcl.colors(max(length(methods), 2), palette = "viridis")
+  xr <- range(ct$x_score, na.rm = TRUE)
+  yr <- range(unlist(ct[methods]), na.rm = TRUE)
+
+  graphics::plot(NA, xlim = xr, ylim = yr,
+                 xlab = paste0(attr(ct, "from"), " raw score"),
+                 ylab = paste0(attr(ct, "to"), " equivalent score"),
+                 main = paste0("Equating: ", attr(ct, "from"), " -> ", attr(ct, "to")))
+  graphics::abline(0, 1, col = "grey70", lty = 2)
+  for (i in seq_along(methods)) {
+    graphics::lines(ct$x_score, ct[[methods[i]]], col = cols[i], lwd = 2)
+  }
+  graphics::legend("topleft", legend = methods, col = cols[seq_along(methods)],
+                   lwd = 2, bty = "n", cex = 0.9)
+  invisible(ct)
 }
