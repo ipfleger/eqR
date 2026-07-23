@@ -108,3 +108,32 @@ test_that("common-item design yields Tucker/Levine/chained/FE conversions", {
   expect_true(all(c("Tucker", "Chained", "FrequencyEstimation") %in% methods))
   expect_length(equated(res, c(5, 10), method = "Tucker"), 2)
 })
+
+test_that("summary() includes a linear parameter comparison with SEs", {
+  res <- make_recipe() |>
+    add_method("linear", boot_reps = 50, boot_type = "perc") |>
+    add_method("linear", mean_only = TRUE, boot_reps = 1) |>
+    run_equating()
+
+  s <- summary(res)
+  params <- s[["X -> Y"]]$parameters
+  expect_s3_class(params, "data.frame")
+  expect_true(all(c("method", "slope", "se_slope", "intercept", "se_intercept") %in% names(params)))
+  expect_true(all(c("Linear", "Mean") %in% params$method))
+  # a bootstrapped linear method has a slope SE; mean equating fixes the slope to 1
+  expect_false(is.na(params$se_slope[params$method == "Linear"]))
+  expect_equal(params$slope[params$method == "Mean"], 1)
+})
+
+test_that("plot() renders default, difference, and SE-band views", {
+  res <- make_recipe() |>
+    add_method("linear", boot_reps = 50) |>
+    add_method("identity") |>
+    run_equating()
+
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  expect_no_error(plot(res))
+  expect_no_error(plot(res, difference = TRUE))
+  expect_no_error(plot(res, difference = TRUE, se = TRUE))
+})

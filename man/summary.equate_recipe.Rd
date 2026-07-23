@@ -9,11 +9,12 @@
 \item{...}{Optional `from`/`to` to restrict to a single pairing.}
 }
 \value{
-Invisibly, a named list (one element per pairing) of
-  `conversion_table` and `moments`.
+Invisibly, a named list (one element per pairing) of `parameters`,
+  `conversion_table`, and `moments`.
 }
 \description{
-For each form pairing, prints (and invisibly returns) the wide conversion
-table and a moment comparison of the observed and equated distributions.
+For each form pairing, prints (and invisibly returns) a slope/intercept
+comparison of the linear methods, the wide conversion table, and a moment
+comparison of the observed and equated distributions.
 }
 \keyword{internal}
