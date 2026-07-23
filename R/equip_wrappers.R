@@ -103,28 +103,50 @@ equate_loglinear_stat_fun <- function(data, i, score_ps, method_opts) {
   EquiEquate(nsy = length(score_ps$range_y), miny = score_ps$min_y, incy = score_ps$inc_y, crfdy = crfd_y, nsx = length(score_ps$range_x), prdx = prdx)
 }
 
+# Cubic-spline postsmoothing of equipercentile equating (symmetric).
+# Follows Equating Recipes: smooth X->Y and Y->X separately with analytic
+# equipercentile standard errors as weights, then report the average of the
+# X->Y spline and the inverse of the Y->X spline. The spline is fit only over
+# the score range whose percentile ranks fall within [prlow, prhigh].
 #' @noRd
 equate_spline_stat_fun <- function(data, i, score_ps, method_opts) {
-  # Rely on the updated equate_none_stat_fun to handle long format extraction
-  eraw <- equate_none_stat_fun(data, i, score_ps)
+  sp <- score_ps
+  sd_   <- data[i, ]
+  forms <- levels(sd_$form)
+  sx <- sd_$score[sd_$form == forms[1]]
+  sy <- sd_$score[sd_$form == forms[2]]
+  nx <- length(sx); ny <- length(sy)
 
-  sample_data <- data[i, ]
-  forms <- levels(sample_data$form)
-  scores_x <- sample_data$score[sample_data$form == forms[1]]
+  fx <- get_freq_dist(sx, sp$range_x) / nx
+  fy <- get_freq_dist(sy, sp$range_y) / ny
+  crfdx <- cumsum(fx); crfdy <- cumsum(fy)
+  prdx <- perc_rank(sp$range_x, sp$min_x, sp$max_x, sp$inc_x, crfdx)
+  prdy <- perc_rank(sp$range_y, sp$min_y, sp$max_y, sp$inc_y, crfdy)
 
-  # Fix: Use length(scores_x) instead of sum(i)
-  prdx_unsmoothed <- perc_rank(x = score_ps$range_x,
-                               min = score_ps$min_x,
-                               max = score_ps$max_x,
-                               inc = score_ps$inc_x,
-                               crfd = cumsum(get_freq_dist(scores_x, score_ps$range_x) / length(scores_x)))
+  win <- function(pr) {
+    keep <- which(pr >= method_opts$prlow & pr <= method_opts$prhigh)
+    if (length(keep) < 4L) keep <- seq_along(pr)   # fall back to the full range
+    c(keep[1], keep[length(keep)])
+  }
 
-  xlow <- which.min(abs(prdx_unsmoothed - method_opts$prlow))
-  xhigh <- which.min(abs(prdx_unsmoothed - method_opts$prhigh))
+  # X -> Y direction
+  eraw_xy <- EquiEquate(nsy = length(sp$range_y), miny = sp$min_y, incy = sp$inc_y,
+                        crfdy = crfdy, nsx = length(sp$range_x), prdx = prdx)
+  se_xy <- se_ep_equate(prdx, crfdy, nx, ny)
+  wx <- win(prdx)
+  dY <- post_smooth(sp$range_x, eraw_xy, se_xy, method_opts$s,
+                    wx[1], wx[2], sp$max_y, sp$range_x)$vectY
 
-  post_smooth(xvalues = score_ps$range_x, yvalues = eraw, dyi = rep(1, length(eraw)),
-              s = method_opts$s, xlow = xlow, xhigh = xhigh,
-              ky = score_ps$max_y, vectX = score_ps$range_x)$vectY
+  # Y -> X direction, then invert onto the X scale
+  eraw_yx <- EquiEquate(nsy = length(sp$range_x), miny = sp$min_x, incy = sp$inc_x,
+                        crfdy = crfdx, nsx = length(sp$range_y), prdx = prdy)
+  se_yx <- se_ep_equate(prdy, crfdx, ny, nx)
+  wy <- win(prdy)
+  dX <- post_smooth(sp$range_y, eraw_yx, se_yx, method_opts$s,
+                    wy[1], wy[2], sp$max_x, sp$range_y)$vectY
+  dX_inv <- stats::approx(x = dX, y = sp$range_y, xout = sp$range_x, rule = 2)$y
+
+  (dY + dX_inv) / 2
 }
 
 #' @noRd
@@ -197,6 +219,38 @@ equate_sgrg_statistic <- function(data, i, method_options, score_params, smooth_
 }
 
 
+#' Robustly extract nested (50%/95%) bootstrap CI bounds for one statistic
+#'
+#' Returns NA bounds for degenerate columns (all resamples equal) or when
+#' `boot::boot.ci` fails (e.g. too few replications for "bca"), falling back
+#' from the requested type to the percentile method. Prevents low-`boot_reps`
+#' runs from aborting the whole equating.
+#' @keywords internal
+boot_ci_bounds <- function(bootobj, index, boot_type = "perc", conf = c(0.5, 0.95)) {
+  na4 <- c(lower_bound_50 = NA_real_, upper_bound_50 = NA_real_,
+           lower_bound_95 = NA_real_, upper_bound_95 = NA_real_)
+  col <- bootobj$t[, index]
+  if (length(unique(col[is.finite(col)])) < 2) return(na4)
+
+  type <- boot_type[1]
+  ci <- tryCatch(boot::boot.ci(bootobj, index = index, type = type, conf = conf),
+                 error = function(e) NULL)
+  if (is.null(ci) && type != "perc") {
+    ci   <- tryCatch(boot::boot.ci(bootobj, index = index, type = "perc", conf = conf),
+                     error = function(e) NULL)
+    type <- "perc"
+  }
+  if (is.null(ci)) return(na4)
+
+  comp <- switch(type, perc = "percent", norm = "normal",
+                 basic = "basic", bca = "bca", "percent")
+  m <- ci[[comp]]
+  if (is.null(m) || !is.matrix(m) || nrow(m) < 2 || ncol(m) < 2) return(na4)
+  nc <- ncol(m)
+  c(lower_bound_50 = m[1, nc - 1], upper_bound_50 = m[1, nc],
+    lower_bound_95 = m[2, nc - 1], upper_bound_95 = m[2, nc])
+}
+
 equipercentile_sgrg <- function(eq, forms, title) {
 
   # 1. Initial Setup
@@ -251,27 +305,8 @@ equipercentile_sgrg <- function(eq, forms, title) {
                                       NULL,
                                       eq@data_ids[[forms[1]]][[attr(eq@design, "counter_balance_by")]]))
 
-    boots <- lapply(1:ncol(equi_boot$t), \(i) `if`(length(unique(equi_boot$t[,i])) == 1,
-                                                   list(cbind(c(NA,NA), c(NA,NA))) |> `names<-`(sapply(boot_type, switch, "perc" = "percent")),
-                                                   tryCatch({
-                                                     # 1. Attempt to run with "bca"
-                                                     boot::boot.ci(equi_boot, index = i, type = boot_type, conf = c(0.5, 0.95)) |> `attr<-`('boot_type', boot_type)
-                                                   },
-                                                   error = function(e) {
-                                                     # 2. If an error occurs, issue a warning
-                                                     warning(paste(boot_type, "calculation failed. Switching to percentile (perc) method."), call. = FALSE)
-                                                     # 3. Rerun with "perc"
-                                                     boot::boot.ci(equi_boot, index = i, type = "perc", conf = c(0.5, 0.95)) |> `attr<-`('boot_type', 'perc')
-                                                   }
-                                                   )
-    )
-    )
-
-    cis <- do.call(rbind, lapply(boots, \(x) {
-      ci_type <- sapply(attr(x, 'boot_type'), switch, "perc" = "percent", "norm" = "normal", "basic" = "basic", "bca" = "bca")
-      x_mat <- x[[ci_type]]
-      c(x_mat[1,(ncol(x_mat) - 1):ncol(x_mat)], x_mat[2,(ncol(x_mat) - 1):ncol(x_mat)])
-    })) |> `colnames<-`(c("lower_bound_50", "upper_bound_50", "lower_bound_95", "upper_bound_95"))
+    cis <- do.call(rbind, lapply(seq_len(ncol(equi_boot$t)),
+                                 function(i) boot_ci_bounds(equi_boot, i, boot_type)))
 
     bsm <- colMeans(equi_boot$t)
     bs_se <- apply(equi_boot$t, 2, sd)
@@ -512,14 +547,7 @@ equipercentile_cg <- function(eq, forms, anchors, title) {#, boot_type = "perc",
       cols <- start_col:end_col
 
       # Calculate CIs for this method's columns
-      boots <- lapply(cols, \(i) `if`(length(unique(equi_boot$t[,i])) == 1,
-                                      list(cbind(c(NA,NA), c(NA,NA))) |> `names<-`(sapply(boot_type, switch, "perc" = "percent")),
-                                      boot::boot.ci(equi_boot, index = i, type = boot_type, conf = c(.5, .95))))
-      cis <- do.call(rbind, lapply(boots, \(x) {
-        ci_type <- sapply(boot_type, switch, "perc" = "percent")
-        x_mat <- x[[ci_type]]
-        c(x_mat[1,(ncol(x_mat) - 1):ncol(x_mat)], x_mat[2,(ncol(x_mat) - 1):ncol(x_mat)])
-      })) |> `colnames<-`(c("lower_bound_50", "upper_bound_50", "lower_bound_95", "upper_bound_95"))
+      cis <- do.call(rbind, lapply(cols, function(i) boot_ci_bounds(equi_boot, i, boot_type)))
 
       list(
         parameters = NULL,

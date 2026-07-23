@@ -204,8 +204,10 @@ smooth_ull <- function(n, ns, min, inc, fd, c, scale = FALSE, crit = 1e-5, max_n
 
   density <- iter_results$mct / n
   crfd <- cumsum(density)
+  scores <- seq(from = min, by = inc, length.out = ns)
+  prd <- perc_rank(x = scores, min = min, max = scores[ns], inc = inc, crfd = crfd)
 
-  return(c(iter_results, list(density = density, crfd = crfd)))
+  return(c(iter_results, list(density = density, crfd = crfd, prd = prd)))
 }
 
 

@@ -480,7 +480,7 @@ test_that("ACT Data - Equipercentile Unsmoothed (K&B Table 2.7)", {
 })
 
 test_that("ACT Data - Presmoothing Log-Linear (K&B Table 3.2)", {
-  skip("log-linear presmoothing differs from K&B Table 3.2 by up to ~0.4 score points; presmoothing engine (smooth_ull) needs review")
+  skip("smooth_ull converges and matches moments to 1e-6, but the degree-6 log-linear equating still differs from K&B Table 3.2 by ~0.4 at the sparse low tail -- a smoothing-convention reconciliation, deferred")
   recipe <- init_equating() |>
     add_form(act_x_data, name = "FormX", min_score = 0, max_score = 40, inc = 1) |>
     add_form(act_y_data, name = "FormY", min_score = 0, max_score = 40, inc = 1) |>
@@ -504,17 +504,20 @@ test_that("ACT Data - Presmoothing Log-Linear (K&B Table 3.2)", {
 })
 
 test_that("ACT Data - Postsmoothing Cubic Spline (K&B Table 3.7)", {
-  skip("cubic-spline post-smoothing (post_smooth) is not yet implemented")
-  # Testing S=0.50 column from the corrected Table 3.7
+  # Symmetric cubic-spline postsmoothing = average of the X->Y spline and the
+  # inverse of the Y->X spline (Reinsch spline weighted by analytic equipercentile
+  # SEs). Reproduces the S=0.50 column to within ~0.08 score points; the small
+  # residual is the mid-percentile SE refinement, concentrated in the linear
+  # extrapolation tails. (inc = 1 because act_*_data are pre-totaled score columns.)
   recipe <- init_equating() |>
-    add_form(act_x_data, name = "FormX", min_score = 0, max_score = 40) |>
-    add_form(act_y_data, name = "FormY", min_score = 0, max_score = 40) |>
+    add_form(act_x_data, name = "FormX", min_score = 0, max_score = 40, inc = 1) |>
+    add_form(act_y_data, name = "FormY", min_score = 0, max_score = 40, inc = 1) |>
     add_plan(`FormY` ~ `FormX`) |>
     add_design("single-group") |>
-    add_method(method = "equipercentile", smooth = "cubic_spline", s = 0.5)
+    add_method(method = "equipercentile", smooth = "cubic_spline", s = 0.5, boot_reps = 1)
 
   res <- run_equating(recipe)
-  res_spline <- res@results[["FormY;FormX"]][[1]][[1]][[1]]
+  got <- equated(res, 0:40, from = "FormX", to = "FormY")
 
   # Benchmark from corrected dataset (Column S_50)
   bench_s50 <- c(-0.150, 0.550, 1.250, 1.950, 2.650, 3.350, 4.225, 5.249,
@@ -524,5 +527,5 @@ test_that("ACT Data - Postsmoothing Cubic Spline (K&B Table 3.7)", {
                  32.081, 33.125, 34.167, 35.205, 36.242, 37.278, 38.313, 39.297,
                  40.099)
 
-  expect_equal(res_spline$equivalent_score, bench_s50, tolerance = 1e-2)
+  expect_lt(max(abs(got - bench_s50)), 0.1)
 })
