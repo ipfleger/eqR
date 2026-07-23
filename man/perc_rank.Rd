@@ -53,5 +53,5 @@ perc_rank(x = c(2, 5.5, 9), min = 0, max = 10, inc = 1, crfd = cum_rel_freqs)
 }
 }
 \author{
-R. L. Brennan (Original C code), Google's Gemini (R translation)
+R. L. Brennan (Original C code)
 }

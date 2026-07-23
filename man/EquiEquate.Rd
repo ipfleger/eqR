@@ -59,5 +59,5 @@ print(data.frame(x_score = 0:10, equated_y = equated_scores))
 \code{\link{perc_point}}, \code{\link{perc_rank}}
 }
 \author{
-R. L. Brennan (Original C code), Google's Gemini (R translation)
+R. L. Brennan (Original C code)
 }

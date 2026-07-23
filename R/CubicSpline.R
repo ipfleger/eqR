@@ -15,7 +15,7 @@
 #'
 #' @return An upper triangular matrix `R` such that `t(R) %*% R` is equal to
 #'   the original matrix `matx`.
-#' @author Jaehoon Seol (Original C code), Google's Gemini (R translation)
+#' @author Jaehoon Seol (Original C code)
 #'
 #' @examples
 #' \dontrun{

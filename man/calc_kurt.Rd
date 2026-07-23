@@ -19,5 +19,5 @@ Calculates the kurtosis of a beta distribution given its two shape parameters.
 This is an R translation of `CalcKurt`.
 }
 \author{
-B. A. Hanson (Original C code), Google's Gemini (R translation)
+B. A. Hanson (Original C code)
 }

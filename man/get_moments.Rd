@@ -56,5 +56,5 @@ get_moments(scores = score_vals, freq = freqs)
 }
 }
 \author{
-R. L. Brennan (Original C code), Google's Gemini (R translation)
+R. L. Brennan (Original C code)
 }

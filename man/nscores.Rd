@@ -43,5 +43,5 @@ print(number_of_scores)
 \code{\link{loc}}
 }
 \author{
-R. L. Brennan (Original C code), Google's Gemini (R translation)
+R. L. Brennan (Original C code)
 }

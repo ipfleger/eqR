@@ -21,7 +21,7 @@
 #' @param inc A numeric value for the increment between scores.
 #'
 #' @return An integer representing the zero-based index of the score `x`.
-#' @author R. L. Brennan (Original C code), Google's Gemini (R translation)
+#' @author R. L. Brennan (Original C code)
 #'
 #' @examples
 #' \dontrun{
@@ -58,7 +58,7 @@ loc <- function(x, min, inc) {
 #' @param inc A numeric value for the increment between scores.
 #'
 #' @return An integer representing the total number of scores in the sequence.
-#' @author R. L. Brennan (Original C code), Google's Gemini (R translation)
+#' @author R. L. Brennan (Original C code)
 #'
 #' @seealso \code{\link{loc}}
 #'
@@ -94,7 +94,7 @@ nscores <- function(max, min, inc) {
 #' @param inc A numeric value for the increment between scores.
 #'
 #' @return A numeric value representing the score at the given location.
-#' @author R. L. Brennan (Original C code), Google's Gemini (R translation)
+#' @author R. L. Brennan (Original C code)
 #'
 #' @seealso \code{\link{loc}}
 #'
@@ -139,7 +139,7 @@ score <- function(loc, min, inc) {
 #'   distribution. The length of this vector should be `nscores(max, min, inc)`.
 #'
 #' @return A numeric vector of percentile ranks (0-100).
-#' @author R. L. Brennan (Original C code), Google's Gemini (R translation)
+#' @author R. L. Brennan (Original C code)
 #'
 #' @examples
 #' \dontrun{
@@ -154,6 +154,7 @@ score <- function(loc, min, inc) {
 #' # Calculate for multiple scores
 #' perc_rank(x = c(2, 5.5, 9), min = 0, max = 10, inc = 1, crfd = cum_rel_freqs)
 #' }
+#' @export
 perc_rank <- function(x, min, max, inc, crfd) {
   # Define the score points and their corresponding boundaries for interpolation
   score_points <- seq(from = min, to = max, by = inc)
@@ -198,7 +199,7 @@ perc_rank <- function(x, min, max, inc, crfd) {
 #'   distribution. The length of this vector should be `ns`.
 #'
 #' @return A numeric vector of scores corresponding to the given percentile ranks.
-#' @author R. L. Brennan (Original C code), Google's Gemini (R translation)
+#' @author R. L. Brennan (Original C code)
 #'
 #' @seealso \code{\link{perc_rank}}
 #'
@@ -290,7 +291,7 @@ perc_point <- function(pr, ns, min, inc, crfd) {
 #' @param vect2 A numeric vector of the same length as `vect1`.
 #'
 #' @return A single numeric value representing the dot product of the two vectors.
-#' @author Jaehoon Seol (Original C code), Google's Gemini (R translation)
+#' @author Jaehoon Seol (Original C code)
 #'
 #' @examples
 #' \dontrun{
@@ -323,7 +324,7 @@ er_dot <- function(vect1, vect2) {
 #'   same length as `vectY`.
 #'
 #' @return A new numeric vector containing the result of `alpha * vectX + vectY`.
-#' @author Jaehoon Seol (Original C code), Google's Gemini (R translation)
+#' @author Jaehoon Seol (Original C code)
 #'
 #' @examples
 #' \dontrun{
@@ -353,7 +354,7 @@ er_daxpy <- function(vectY, alpha, vectX) {
 #' @param scale A single numeric value to scale the vector by.
 #'
 #' @return A new numeric vector containing the scaled values.
-#' @author Jaehoon Seol (Original C code), Google's Gemini (R translation)
+#' @author Jaehoon Seol (Original C code)
 #'
 #' @examples
 #' \dontrun{
@@ -387,7 +388,7 @@ er_scale <- function(vect, scale) {
 #'   must match the dimensions of `matx`.
 #'
 #' @return A new matrix containing the updated values.
-#' @author Jaehoon Seol (Original C code), Google's Gemini (R translation)
+#' @author Jaehoon Seol (Original C code)
 #'
 #' @examples
 #' \dontrun{
@@ -421,7 +422,7 @@ er_r1update <- function(matx, scale, vect) {
 #'   the number of columns in `matx`.
 #'
 #' @return A new numeric vector containing the result of the multiplication.
-#' @author Jaehoon Seol (Original C code), Google's Gemini (R translation)
+#' @author Jaehoon Seol (Original C code)
 #'
 #' @examples
 #' \dontrun{
@@ -464,7 +465,7 @@ er_mvmult <- function(matx, vect1) {
 #'
 #' @return A named numeric vector containing the mean, standard deviation (sd),
 #'   skewness, and kurtosis.
-#' @author R. L. Brennan (Original C code), Google's Gemini (R translation)
+#' @author R. L. Brennan (Original C code)
 #'
 #' @examples
 #' \dontrun{
@@ -534,7 +535,7 @@ get_moments <- function(scores = NULL, freq = NULL, rel_freq = NULL, min = NULL,
 #'   form `X`.
 #'
 #' @return A numeric vector of equated raw scores on the `Y` scale.
-#' @author R. L. Brennan (Original C code), Google's Gemini (R translation)
+#' @author R. L. Brennan (Original C code)
 #'
 #' @seealso \code{\link{perc_point}}, \code{\link{perc_rank}}
 #'

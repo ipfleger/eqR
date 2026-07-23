@@ -12,7 +12,11 @@
 #' @param x An object of class `equate_recipe`.
 #' @param ... Not used.
 #'
-#' @export
+#' @details Registered as an S7 method for the base `print()` generic via
+#'   [S7::methods_register()] in `.onLoad`, so it needs no explicit NAMESPACE
+#'   export.
+#' @name print.equate_recipe
+#' @keywords internal
 S7::method(print, equate_recipe) <- function(x, ...) {
   if (length(x@results) == 0) {
     # --- Print the Plan (Recipe has NOT been run) ---

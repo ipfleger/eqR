@@ -21,5 +21,5 @@ four moments of the true score distribution. This is an R translation of
 `CalcBetaParaMM`.
 }
 \author{
-B. A. Hanson (Original C code), Google's Gemini (R translation)
+B. A. Hanson (Original C code)
 }

@@ -109,8 +109,10 @@ identity_equate <- function(forms, eq, ...) {
   result <- list(
     x_score = x_score,
     equivalent_score = equivalent_score,
-    observed_scores_x = rowSums(eq@data[[forms[1]]][, -1]),
-    observed_scores_y = rowSums(eq@data[[forms[2]]][, -1]),
+    # @data holds item-only columns (ids live in @data_ids), so total on the
+    # form is the rowSum over its own item columns -- never drop column 1.
+    observed_scores_x = rowSums(eq@data[[forms[1]]][eq@forms[[forms[1]]]], na.rm = TRUE),
+    observed_scores_y = rowSums(eq@data[[forms[2]]][eq@forms[[forms[2]]]], na.rm = TRUE),
     diagnostics = list()
   )
 
@@ -208,6 +210,7 @@ print.equate_results <- function(x, ...) {
 #' @return A nested list where each element corresponds to an equating plan.
 #'   Each plan's element is a list containing the summary components
 #'   (tables and plots) for that specific plan.
+#' @export
 summarize_equating_results <- function(results_object, ...) {
 
   all_summaries <- list()
@@ -357,7 +360,7 @@ create_conversion_table <- function(results_list) {
     res <- results_list[[method_name]]
     df <- data.frame(
       x_score = res$x_score,
-      value = res$equivalents
+      value = res$equivalent_score
     )
     names(df)[2] <- method_name
     df
@@ -402,7 +405,7 @@ compare_moments <- function(results_list) {
   for (method_name in names(results_list)) {
     res <- results_list[[method_name]]
     # Create an interpolation function for this method
-    equate_fun <- stats::approxfun(res$x_score, res$equivalents, rule = 2)
+    equate_fun <- stats::approxfun(res$x_score, res$equivalent_score, rule = 2)
     # Apply equating to the observed 'from' scores
     converted_scores <- equate_fun(obs_x)
     moment_list[[method_name]] <- calculate_moments(converted_scores)
@@ -445,7 +448,7 @@ plot_conversions <- function(conversion_table, gg = TRUE) {
     plot(NA, xlim = x_range, ylim = y_range, xlab = x_label, ylab = y_label, main = title)
     abline(a = 0, b = 1, col = "grey50", lty = 2)
 
-    colors <- viridis::viridis(ncol(conversion_table) - 1, option = "D")
+    colors <- grDevices::hcl.colors(ncol(conversion_table) - 1, palette = "viridis")
     for (i in 2:ncol(conversion_table)) {
       lines(conversion_table$x_score, conversion_table[[i]], col = colors[i-1], lty = i-1, lwd = 2)
     }
@@ -464,7 +467,7 @@ plot_distributions <- function(results_list, gg = TRUE) {
   )
   for (method_name in names(results_list)) {
     res <- results_list[[method_name]]
-    equate_fun <- stats::approxfun(res$x_score, res$equivalents, rule = 2)
+    equate_fun <- stats::approxfun(res$x_score, res$equivalent_score, rule = 2)
     score_vectors[[method_name]] <- equate_fun(obs_x)
   }
 
@@ -496,7 +499,7 @@ plot_distributions <- function(results_list, gg = TRUE) {
     y_range <- range(sapply(densities, function(d) d$y))
 
     plot(NA, xlim = x_range, ylim = y_range, xlab = x_label, ylab = "Density", main = title)
-    colors <- viridis::viridis(length(densities), option = "D")
+    colors <- grDevices::hcl.colors(length(densities), palette = "viridis")
     for (i in seq_along(densities)) {
       lines(densities[[i]], col = colors[i], lty = i, lwd = 2)
     }

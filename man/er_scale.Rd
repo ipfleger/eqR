@@ -32,5 +32,5 @@ er_scale(v, s) # Expected: c(5, 10, 15)
 }
 }
 \author{
-Jaehoon Seol (Original C code), Google's Gemini (R translation)
+Jaehoon Seol (Original C code)
 }

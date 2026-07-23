@@ -20,8 +20,11 @@ The numeric value of Lord's k.
 \description{
 Calculates the value of Lord's k for the compound binomial error model,
 given a test's reliability (typically KR-20), number of items, and raw
-score moments. This is an R translation of `CalcLordk`.
+score moments. This is an R translation of `CalcLordk`. Returns 0 if
+reliability is <= 0, or if the calculated k is negative (which implies the
+model assumptions are not met for the given data).
 }
-\author{
-B. A. Hanson (Original C code), Google's Gemini (R translation)
+\references{
+Hanson, B. A. (1991). Method of moments estimates for the
+  four-parameter beta compound binomial model (ACT Research Report 91-5).
 }

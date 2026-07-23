@@ -25,5 +25,5 @@ of parameters, with fallbacks to simpler models if estimation fails. This is
 an R translation of `CalcBetaPara`.
 }
 \author{
-B. A. Hanson (Original C code), Google's Gemini (R translation)
+B. A. Hanson (Original C code)
 }

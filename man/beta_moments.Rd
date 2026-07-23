@@ -28,5 +28,5 @@ from the moments of the observed raw-score distribution, based on Lord's
 compound binomial error model. This is an R translation of `BetaMoments`.
 }
 \author{
-B. A. Hanson (Original C code), Google's Gemini (R translation)
+B. A. Hanson (Original C code)
 }

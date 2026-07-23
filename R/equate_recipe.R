@@ -5,6 +5,7 @@ equate_recipe <- S7::new_class(
     forms    = S7::class_list,
     data     = S7::class_list,
     data_ids = S7::class_list,
+    anchors  = S7::class_list,
     plan     = S7::class_data.frame,
     design   = S7::class_character,
     methods  = S7::class_list,
@@ -205,7 +206,7 @@ add_design <- function(equate_recipe, design, counter_balance_by = NULL) {
   # Match normalized design codes
   if (design %in% c("single", "single-group","single group", "s", "sg")) {
     cli::cli_inform("Single Group Design {ifelse(is.null(counter_balance_by), 'Without', 'With')} Counter Balancing")
-    equate_recipe@design <- ("S") |> `attr<-`("counter_balance_by", counter_balance_by) |> `attr<-`("label", glue::glue("Single Group Design {ifelse(is.null(counter_balance_by), 'Without', 'With')} Counter Balancing"))
+    equate_recipe@design <- ("S") |> `attr<-`("counter_balance_by", counter_balance_by) |> `attr<-`("label", paste0("Single Group Design ", if (is.null(counter_balance_by)) "Without" else "With", " Counter Balancing"))
   } else if (design %in% c("random", "random-groups", "r", "rg")) {
     cli::cli_inform("Random/Equivalent Groups Design")
     equate_recipe@design <- "R"  |> `attr<-`("label", "Random/Equivalent Groups Design")
@@ -446,10 +447,9 @@ add_method <- function(equate_recipe, method, type = "default", smooth = "none",
   if (new_method$method == "I") {
     new_method$type <- "identity"
   } else if (new_method$method == "L") {
-    # if(new_method$design == "SG") new_method$type <- ifelse(options$mean_only, "mean", "linear") #### Gemini, this is a poor design choice.
+    # Linear SG/RG runs mean and slope-intercept together; `mean_only` selects
+    # which one the summary highlights, so a single "all" type covers both.
     new_method$type <- "all"
-
-
   } else if (new_method$method == "E") {
     new_method$type <- "E" # Placeholder
   } else if (new_method$method == "IRT") {
@@ -543,7 +543,20 @@ add_method <- function(equate_recipe, method, type = "default", smooth = "none",
 
 
 
-run_equating <- function(eq){#, boot_type = "perc", boot_replications = 1000
+#' Run every method in an equating recipe
+#'
+#' Executes each method added with [add_method()] against each pairing in the
+#' recipe's plan, populating the recipe with results. After running, use the
+#' tidy accessors ([conversions()], [conversion_table()], [equated()]) or the
+#' `print()`, `summary()`, and `plot()` methods to inspect the output.
+#'
+#' @param eq An `equate_recipe` built with [init_equating()] and the `add_*()`
+#'   functions (must have at least a design, a plan, and one method).
+#'
+#' @return The `equate_recipe`, with the raw per-method results in `@results`
+#'   and a tidy long conversion table in `@conversions`.
+#' @export
+run_equating <- function(eq){
 
   eq@results <- lapply(1:nrow(eq@plan) |> `names<-`(apply(eq@plan, 1, paste0,collapse = ";")), \(i) {
 

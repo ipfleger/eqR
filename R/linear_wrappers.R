@@ -19,9 +19,11 @@ linear_sgrg <- function(eq, forms, title){
   boot_type <- method_options$boot_type
   boot_replications = method_options$boot_reps
 
-  dat <- lapply(forms |> `names<-`(forms), \(frm){
-    data.frame(form = frm, score = rowSums(eq@data[[frm]][eq@forms[[frm]]], na.rm = TRUE))
-  }) |> dplyr::bind_rows()
+  dat <- do.call(rbind, lapply(forms, \(frm){
+    data.frame(form = frm,
+               score = rowSums(eq@data[[frm]][eq@forms[[frm]]], na.rm = TRUE),
+               stringsAsFactors = FALSE)
+  }))
 
 
   if (boot_replications <= 1) {
@@ -38,7 +40,7 @@ linear_sgrg <- function(eq, forms, title){
         se = NA_real_, lower_bound_95 = NA_real_, upper_bound_95 = NA_real_,
         bootstrapped_estimate = NA_real_
       ),
-      x_score = seq(from = minx, to = maxx, by = inc),
+      x_score = attr(eq@data[[forms[1]]], "range"),
       equivalent_score = point_estimates[-1:-2],
       bootstrapped_estimate = NA_real_,
       nested_intervals = data.frame(
@@ -46,7 +48,8 @@ linear_sgrg <- function(eq, forms, title){
         lower_bound_95 = NA_real_, upper_bound_95 = NA_real_
       ),
       single = identical(eq@data_ids[[forms[1]]][[1]], eq@data_ids[[forms[2]]][[1]]),
-      observed_scores_x = dat[[1]], observed_scores_y = dat[[2]]
+      observed_scores_x = dat$score[dat$form == forms[1]],
+      observed_scores_y = dat$score[dat$form == forms[2]]
     )) |> `names<-`(method_name)
 
   } else {
@@ -81,7 +84,8 @@ linear_sgrg <- function(eq, forms, title){
       bootstrapped_estimate = bsm[-1:-2],
       nested_intervals = cbind(se = bs_se[-1:-2], cis[-1:-2,]),
       single = identical(eq@data_ids[[forms[1]]][[1]], eq@data_ids[[forms[2]]][[1]]),
-      observed_scores_x = dat[[1]], observed_scores_y = dat[[2]]
+      observed_scores_x = dat$score[dat$form == forms[1]],
+      observed_scores_y = dat$score[dat$form == forms[2]]
     )) |> `names<-`(method_name)
   }
 
@@ -117,7 +121,7 @@ linear_sgrg <- function(eq, forms, title){
 #'
 #' @return A list containing the slope (`a`), intercept (`b`), and a numeric
 #'   vector of the equated raw scores (`equated_scores`).
-#' @author R. L. Brennan (Original C code), Google's Gemini (R translation)
+#' @author R. L. Brennan (Original C code)
 #'
 #' @examples
 #' \dontrun{
@@ -132,6 +136,7 @@ linear_sgrg <- function(eq, forms, title){
 #' print(result$b) # Intercept should be 50 - 2*25 = 0
 #' print(head(result$equated_scores))
 #' }
+#' @export
 linear_equate_rgsg <- function(mnx, sdx, mny, sdy, mean_only = FALSE, min_x, max_x, inc_x) {
 
   # Determine the slope 'a' based on the method

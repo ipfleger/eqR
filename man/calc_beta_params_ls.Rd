@@ -22,5 +22,5 @@ moments while minimizing the squared difference between the observed and
 fitted kurtosis. This is an R replacement for `CalcBetaParaLS`.
 }
 \author{
-B. A. Hanson (Original C code), Google's Gemini (R translation)
+B. A. Hanson (Original C code)
 }
