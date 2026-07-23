@@ -219,6 +219,38 @@ equate_sgrg_statistic <- function(data, i, method_options, score_params, smooth_
 }
 
 
+#' Robustly extract nested (50%/95%) bootstrap CI bounds for one statistic
+#'
+#' Returns NA bounds for degenerate columns (all resamples equal) or when
+#' `boot::boot.ci` fails (e.g. too few replications for "bca"), falling back
+#' from the requested type to the percentile method. Prevents low-`boot_reps`
+#' runs from aborting the whole equating.
+#' @keywords internal
+boot_ci_bounds <- function(bootobj, index, boot_type = "perc", conf = c(0.5, 0.95)) {
+  na4 <- c(lower_bound_50 = NA_real_, upper_bound_50 = NA_real_,
+           lower_bound_95 = NA_real_, upper_bound_95 = NA_real_)
+  col <- bootobj$t[, index]
+  if (length(unique(col[is.finite(col)])) < 2) return(na4)
+
+  type <- boot_type[1]
+  ci <- tryCatch(boot::boot.ci(bootobj, index = index, type = type, conf = conf),
+                 error = function(e) NULL)
+  if (is.null(ci) && type != "perc") {
+    ci   <- tryCatch(boot::boot.ci(bootobj, index = index, type = "perc", conf = conf),
+                     error = function(e) NULL)
+    type <- "perc"
+  }
+  if (is.null(ci)) return(na4)
+
+  comp <- switch(type, perc = "percent", norm = "normal",
+                 basic = "basic", bca = "bca", "percent")
+  m <- ci[[comp]]
+  if (is.null(m) || !is.matrix(m) || nrow(m) < 2 || ncol(m) < 2) return(na4)
+  nc <- ncol(m)
+  c(lower_bound_50 = m[1, nc - 1], upper_bound_50 = m[1, nc],
+    lower_bound_95 = m[2, nc - 1], upper_bound_95 = m[2, nc])
+}
+
 equipercentile_sgrg <- function(eq, forms, title) {
 
   # 1. Initial Setup
@@ -273,27 +305,8 @@ equipercentile_sgrg <- function(eq, forms, title) {
                                       NULL,
                                       eq@data_ids[[forms[1]]][[attr(eq@design, "counter_balance_by")]]))
 
-    boots <- lapply(1:ncol(equi_boot$t), \(i) `if`(length(unique(equi_boot$t[,i])) == 1,
-                                                   list(cbind(c(NA,NA), c(NA,NA))) |> `names<-`(sapply(boot_type, switch, "perc" = "percent")),
-                                                   tryCatch({
-                                                     # 1. Attempt to run with "bca"
-                                                     boot::boot.ci(equi_boot, index = i, type = boot_type, conf = c(0.5, 0.95)) |> `attr<-`('boot_type', boot_type)
-                                                   },
-                                                   error = function(e) {
-                                                     # 2. If an error occurs, issue a warning
-                                                     warning(paste(boot_type, "calculation failed. Switching to percentile (perc) method."), call. = FALSE)
-                                                     # 3. Rerun with "perc"
-                                                     boot::boot.ci(equi_boot, index = i, type = "perc", conf = c(0.5, 0.95)) |> `attr<-`('boot_type', 'perc')
-                                                   }
-                                                   )
-    )
-    )
-
-    cis <- do.call(rbind, lapply(boots, \(x) {
-      ci_type <- sapply(attr(x, 'boot_type'), switch, "perc" = "percent", "norm" = "normal", "basic" = "basic", "bca" = "bca")
-      x_mat <- x[[ci_type]]
-      c(x_mat[1,(ncol(x_mat) - 1):ncol(x_mat)], x_mat[2,(ncol(x_mat) - 1):ncol(x_mat)])
-    })) |> `colnames<-`(c("lower_bound_50", "upper_bound_50", "lower_bound_95", "upper_bound_95"))
+    cis <- do.call(rbind, lapply(seq_len(ncol(equi_boot$t)),
+                                 function(i) boot_ci_bounds(equi_boot, i, boot_type)))
 
     bsm <- colMeans(equi_boot$t)
     bs_se <- apply(equi_boot$t, 2, sd)
@@ -534,14 +547,7 @@ equipercentile_cg <- function(eq, forms, anchors, title) {#, boot_type = "perc",
       cols <- start_col:end_col
 
       # Calculate CIs for this method's columns
-      boots <- lapply(cols, \(i) `if`(length(unique(equi_boot$t[,i])) == 1,
-                                      list(cbind(c(NA,NA), c(NA,NA))) |> `names<-`(sapply(boot_type, switch, "perc" = "percent")),
-                                      boot::boot.ci(equi_boot, index = i, type = boot_type, conf = c(.5, .95))))
-      cis <- do.call(rbind, lapply(boots, \(x) {
-        ci_type <- sapply(boot_type, switch, "perc" = "percent")
-        x_mat <- x[[ci_type]]
-        c(x_mat[1,(ncol(x_mat) - 1):ncol(x_mat)], x_mat[2,(ncol(x_mat) - 1):ncol(x_mat)])
-      })) |> `colnames<-`(c("lower_bound_50", "upper_bound_50", "lower_bound_95", "upper_bound_95"))
+      cis <- do.call(rbind, lapply(cols, function(i) boot_ci_bounds(equi_boot, i, boot_type)))
 
       list(
         parameters = NULL,

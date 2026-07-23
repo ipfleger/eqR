@@ -137,3 +137,20 @@ test_that("plot() renders default, difference, and SE-band views", {
   expect_no_error(plot(res, difference = TRUE))
   expect_no_error(plot(res, difference = TRUE, se = TRUE))
 })
+
+test_that("equipercentile bootstrap CIs are robust at low rep counts", {
+  # low boot_reps used to abort the whole run with a get1index error
+  res <- make_recipe() |>
+    add_method("equipercentile", boot_reps = 40, boot_type = "perc") |>
+    run_equating()
+  conv <- conversions(res)
+  eq_rows <- grepl("Equipercentile", conv$method)
+  expect_true(any(eq_rows))
+  expect_true(any(!is.na(conv$se[eq_rows])))
+
+  # bca is the fragile type at low reps; it must not abort the run
+  res2 <- make_recipe() |>
+    add_method("equipercentile", boot_reps = 60, boot_type = "bca") |>
+    run_equating()
+  expect_true(any(grepl("Equipercentile", conversions(res2)$method)))
+})
