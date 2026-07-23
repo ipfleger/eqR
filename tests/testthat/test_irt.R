@@ -81,3 +81,68 @@ test_that("common-item IRT runs the CNEG scale transformation and folds in", {
   ct <- conversion_table(res)
   expect_true(all(diff(ct[["IRT True Score"]]) >= -1e-6))
 })
+
+
+# --- Numerical validation against independent reimplementations -----------------
+# (self-contained; no external IRT package required)
+
+.tcc <- function(a, b, cc, th) {
+  vapply(th, function(t) sum(cc + (1 - cc) / (1 + exp(-a * (t - b)))), numeric(1))
+}
+.lw <- function(a, b, cc, th) {          # Lord-Wingersky: P(score = 0..n | theta)
+  P <- 1
+  for (i in seq_along(a)) {
+    p <- cc[i] + (1 - cc[i]) / (1 + exp(-a[i] * (th - b[i])))
+    P <- c(P * (1 - p), 0) + c(0, P * p)
+  }
+  P
+}
+.irt_fixture <- function() list(
+  xit = paste0("X", 1:5), yit = paste0("Y", 1:5),
+  ax = c(1.2, 0.8, 1.5, 1.0, 0.9), bx = c(-1.0, -0.3, 0.4, 1.1, 0.0), cx = c(.15, .2, .1, .18, .12),
+  ay = c(1.0, 1.3, 0.7, 1.1, 1.4), by = c(-0.8, 0.1, 0.6, -0.2, 0.9), cy = c(.1, .15, .2, .12, .1),
+  theta = seq(-4, 4, length.out = 100))
+.irt_run <- function(f, params, type, ...) {
+  init_equating() |>
+    add_form(mk_form(300, f$xit, 0.5, seed = 1), "X", id_cols = "id", min_score = 0, max_score = 5, verbose = FALSE) |>
+    add_form(mk_form(300, f$yit, 0.5, seed = 2), "Y", id_cols = "id", min_score = 0, max_score = 5, verbose = FALSE) |>
+    add_plan(Y ~ X) |> add_design("RG") |>
+    add_method("irt", irt_pars = params, type = type, theta = f$theta, ...) |>
+    run_equating()
+}
+
+test_that("IRT true-score equating matches an independent uniroot TCC inversion", {
+  f <- .irt_fixture()
+  params <- data.frame(item = c(f$xit, f$yit), a = c(f$ax, f$ay), b = c(f$bx, f$by), c = c(f$cx, f$cy))
+  pkg <- equated(.irt_run(f, params, "true_score"), 0:5, method = "IRT True Score")
+  ind <- vapply(0:5, function(s) {
+    lb <- sum(f$cx); ub <- length(f$ax)
+    if (s <= lb || s >= ub) return(NA_real_)         # interior only (tails extrapolate)
+    th <- uniroot(function(t) .tcc(f$ax, f$bx, f$cx, t) - s, c(-30, 30))$root
+    .tcc(f$ay, f$by, f$cy, th)
+  }, numeric(1))
+  ok <- !is.na(ind)
+  expect_lt(max(abs(pkg[ok] - ind[ok])), 1e-3)
+  expect_true(all(diff(pkg) > 0))                    # strictly increasing
+})
+
+test_that("IRT observed-score equating matches an independent Lord-Wingersky computation", {
+  f <- .irt_fixture()
+  params <- data.frame(item = c(f$xit, f$yit), a = c(f$ax, f$ay), b = c(f$bx, f$by), c = c(f$cx, f$cy))
+  pkg <- equated(.irt_run(f, params, "observed_score", theta_dist = "normal"), 0:5, method = "IRT Observed Score")
+  w  <- dnorm(f$theta); w <- w / sum(w)
+  dx <- rowSums(vapply(seq_along(f$theta), function(j) .lw(f$ax, f$bx, f$cx, f$theta[j]) * w[j], numeric(6)))
+  dy <- rowSums(vapply(seq_along(f$theta), function(j) .lw(f$ay, f$by, f$cy, f$theta[j]) * w[j], numeric(6)))
+  prd <- perc_rank(0:5, 0, 5, 1, cumsum(dx))
+  ind <- EquiEquate(nsy = 6, miny = 0, incy = 1, crfdy = cumsum(dy), nsx = 6, prdx = prd)
+  expect_lt(max(abs(pkg - ind)), 1e-3)
+})
+
+test_that("IRT equating of a form to itself is the identity", {
+  f <- .irt_fixture()
+  pid <- data.frame(item = c(f$xit, f$yit), a = c(f$ax, f$ax), b = c(f$bx, f$bx), c = c(f$cx, f$cx))
+  ts <- equated(.irt_run(f, pid, "true_score"), 0:4, method = "IRT True Score")
+  os <- equated(.irt_run(f, pid, "observed_score", theta_dist = "normal"), 0:5, method = "IRT Observed Score")
+  expect_lt(max(abs(ts - 0:4)), 1e-3)   # interior; top score limited by the TCC ceiling
+  expect_lt(max(abs(os - 0:5)), 1e-3)
+})
