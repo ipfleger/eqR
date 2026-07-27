@@ -9,7 +9,7 @@ output: html_document
 
 This project is an R package that aims to provide a modern, user-friendly implementation of the "Equating Recipes" program, originally written in C by Robert L. Brennan, Tianyou Wang, Seonghoon Kim, and Jaehoon Seol. "Equating Recipes" is a comprehensive set of functions for performing various psychometric equating methods, as described in the book "Test Equating, Scaling, and Linking: Methods and Practices" by Kolen and Brennan (2004).
 
-The R package will make these powerful equating methods more accessible to the R community, providing a robust and well-documented tool for researchers, psychometricians, and assessment professionals. It will cover a wide range of equating designs, methods, and smoothing techniques, mirroring the extensive functionality of the original C program.
+The R package will cover a wide range of equating designs, methods, and smoothing techniques, mirroring the extensive functionality of the original C program and provide a convenient workflow.
 
 # eqR
 
